@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SmartDictate</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <h1>SmartDictate</h1>
+            <p>本地优先的语音输入助手</p>
+          </div>
+          <div class="status-pill" id="apiStatus">后端检测中</div>
+        </header>
+
+        <section class="control-panel" aria-label="语音输入控制">
+          <div class="field">
+            <label for="sceneSelect">输入场景</label>
+            <select id="sceneSelect">
+              <option value="general">通用输入</option>
+              <option value="meeting">会议纪要</option>
+              <option value="study">学习笔记</option>
+              <option value="message">聊天回复</option>
+              <option value="code_note">代码注释</option>
+            </select>
+          </div>
+
+          <div class="actions">
+            <button class="primary-button" id="recordButton" type="button">开始语音输入</button>
+            <button class="secondary-button" id="processButton" type="button">整理文本</button>
+            <button class="secondary-button" id="copyButton" type="button">复制结果</button>
+          </div>
+        </section>
+
+        <section class="editor-grid">
+          <div class="editor-pane">
+            <div class="pane-header">
+              <h2>实时转写</h2>
+              <span id="recognitionStatus">等待输入</span>
+            </div>
+            <textarea id="rawText" placeholder="点击开始语音输入，或直接粘贴一段文本进行整理。"></textarea>
+          </div>
+
+          <div class="editor-pane">
+            <div class="pane-header">
+              <h2>整理结果</h2>
+              <span id="copyStatus">未复制</span>
+            </div>
+            <textarea id="processedText" placeholder="整理后的文本会显示在这里。"></textarea>
+          </div>
+        </section>
+
+        <section class="metrics-grid" aria-label="输入效率指标">
+          <article>
+            <span>原文字数</span>
+            <strong id="rawLength">0</strong>
+          </article>
+          <article>
+            <span>结果字数</span>
+            <strong id="processedLength">0</strong>
+          </article>
+          <article>
+            <span>清理口癖</span>
+            <strong id="removedFillers">0</strong>
+          </article>
+          <article>
+            <span>识别耗时</span>
+            <strong id="elapsedSeconds">0s</strong>
+          </article>
+        </section>
+      </section>
+
+      <aside class="history-panel">
+        <div class="pane-header">
+          <h2>最近记录</h2>
+          <button class="text-button" id="refreshHistoryButton" type="button">刷新</button>
+        </div>
+        <div id="historyList" class="history-list"></div>
+      </aside>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
