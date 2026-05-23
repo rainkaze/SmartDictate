@@ -16,6 +16,9 @@ jobs:
 
     - name: Sync to Gitee
       uses: wearerequired/git-mirror-action@master
+      env:
+        GIT_CONFIG_PARAMETERS: "'safe.directory=/github/workspace'"
       with:
         source-repo: "https://github.com/rainkaze/SmartDictate.git"
         destination-repo: "https://${{ secrets.GITEE_USERNAME }}:${{ secrets.GITEE_TOKEN }}@gitee.com/${{ secrets.GITEE_USERNAME }}/SmartDictate.git"
+        git_access_token: ${{ secrets.GITHUB_TOKEN }}
