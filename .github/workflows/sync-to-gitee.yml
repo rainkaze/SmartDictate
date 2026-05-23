@@ -16,11 +16,11 @@ jobs:
 
     - name: Sync to Gitee
       # 换用专门针对 Gitee 优化的同步插件
-      uses: Yikun/gitee-bucket-action@v1.4
+      uses: Yikun/gitee-mirror-action@v1.4
       with:
-        # 负责连接 GitHub 侧的临时凭证
+        # 负责连接 Gitee 侧的 Token
         gitee-password: ${{ secrets.GITEE_TOKEN }}
         gitee-username: ${{ secrets.GITEE_USERNAME }}
-        # 对应 GitHub 的账号名/仓库名
+        # 对应 GitHub 的账号名和仓库名
         git-username: rainkaze
         git-repo: SmartDictate
