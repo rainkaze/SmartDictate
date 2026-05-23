@@ -35,8 +35,7 @@ def create_item(text: str) -> TranscriptItem:
 
 
 def create_store(storage_dir: Path, limit: int = 10) -> TranscriptStore:
-    data_file = storage_dir / f"{uuid4()}.json"
-    return TranscriptStore(data_file=str(data_file), limit=limit)
+    return TranscriptStore(database_file=":memory:", limit=limit)
 
 
 def test_store_adds_new_item_first(storage_dir: Path) -> None:
@@ -80,3 +79,11 @@ def test_store_clears_items(storage_dir: Path) -> None:
     store.clear()
 
     assert store.list_recent() == []
+
+
+def test_store_reports_health_and_count(storage_dir: Path) -> None:
+    store = create_store(storage_dir)
+    store.add(create_item("第一条"))
+
+    assert store.ping() is True
+    assert store.count() == 1
