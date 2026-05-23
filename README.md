@@ -177,6 +177,7 @@ DELETE /api/hotwords/{source}
 - [Demo 演示脚本](docs/demo-script.md)
 - [交付检查清单](docs/delivery-checklist.md)
 - [后端启动与接口说明](docs/backend-guide.md)
+- [持久化与可观测性说明](docs/persistence-observability.md)
 - [文本处理规则说明](docs/text-processing-guide.md)
 - [语音输入前端说明](docs/voice-input-guide.md)
 - [历史记录功能说明](docs/history-records-guide.md)

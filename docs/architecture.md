@@ -13,8 +13,8 @@ flowchart LR
     API --> Processor["文本处理服务"]
     API --> Hotwords["热词字典服务"]
     API --> History["历史记录服务"]
-    Hotwords --> HotwordFile["backend/data/hotwords.json"]
-    History --> HistoryFile["backend/data/transcripts.json"]
+    Hotwords --> Database["backend/data/smartdictate.sqlite3"]
+    History --> Database
     Processor --> Rules["backend/app/config/text_rules.json"]
 ```
 
@@ -85,11 +85,18 @@ backend/app/config/text_rules.json
 项目内置规则，随代码提交。
 
 ```text
-backend/data/hotwords.json
-backend/data/transcripts.json
+backend/data/smartdictate.sqlite3
 ```
 
-本地运行数据，已被 `.gitignore` 忽略，不提交仓库。
+本地运行数据库，已被 `.gitignore` 忽略，不提交仓库。历史记录和用户自定义热词都保存在 SQLite 中。
+
+## 中间件与可观测性
+
+```text
+backend/app/core/middleware.py
+```
+
+为每个请求添加 `X-Request-ID` 和 `X-Process-Time-Ms` 响应头，并输出基础访问日志。这样可以在前后端联调时快速定位一次请求，也能在路演中说明项目对接口耗时和问题排查的考虑。
 
 ## 为什么这样设计
 
