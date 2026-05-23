@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.core.config import get_settings
@@ -45,5 +45,17 @@ def process_transcript(payload: ProcessTranscriptRequest) -> TranscriptItem:
 
 
 @app.get("/api/transcripts", response_model=list[TranscriptItem])
-def list_transcripts() -> list[TranscriptItem]:
-    return store.list_recent()
+def list_transcripts(limit: int = Query(default=10, ge=1, le=30)) -> list[TranscriptItem]:
+    return store.list_recent(limit=limit)
+
+
+@app.delete("/api/transcripts/{transcript_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_transcript(transcript_id: str, response: Response) -> None:
+    deleted = store.delete(transcript_id)
+    if not deleted:
+        response.status_code = status.HTTP_404_NOT_FOUND
+
+
+@app.delete("/api/transcripts", status_code=status.HTTP_204_NO_CONTENT)
+def clear_transcripts() -> None:
+    store.clear()
