@@ -217,6 +217,10 @@ button:disabled {
   color: var(--accent-dark);
 }
 
+.danger-text {
+  color: var(--danger);
+}
+
 .editor-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -279,6 +283,17 @@ textarea {
   margin-top: 14px;
 }
 
+.history-toolbar,
+.history-actions,
+.history-meta {
+  display: flex;
+  align-items: center;
+}
+
+.history-toolbar {
+  gap: 8px;
+}
+
 .history-item {
   display: grid;
   gap: 8px;
@@ -298,6 +313,18 @@ textarea {
   margin: 0;
   color: var(--text);
   line-height: 1.6;
+}
+
+.history-meta {
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.history-actions {
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .history-time {

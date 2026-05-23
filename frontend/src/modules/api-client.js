@@ -28,12 +28,33 @@ export async function processTranscript({ rawText, scene }) {
   return response.json();
 }
 
-export async function listTranscripts() {
-  const response = await fetch(`${API_BASE_URL}/api/transcripts`);
+export async function listTranscripts({ limit = 10 } = {}) {
+  const query = new URLSearchParams({ limit: String(limit) });
+  const response = await fetch(`${API_BASE_URL}/api/transcripts?${query.toString()}`);
 
   if (!response.ok) {
     throw new Error("历史记录接口请求失败");
   }
 
   return response.json();
+}
+
+export async function deleteTranscript(id) {
+  const response = await fetch(`${API_BASE_URL}/api/transcripts/${id}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok && response.status !== 404) {
+    throw new Error("删除历史记录失败");
+  }
+}
+
+export async function clearTranscripts() {
+  const response = await fetch(`${API_BASE_URL}/api/transcripts`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    throw new Error("清空历史记录失败");
+  }
 }

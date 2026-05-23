@@ -85,7 +85,10 @@
       <aside class="history-panel">
         <div class="pane-header">
           <h2>最近记录</h2>
-          <button class="text-button" id="refreshHistoryButton" type="button">刷新</button>
+          <div class="history-toolbar">
+            <button class="text-button" id="refreshHistoryButton" type="button">刷新</button>
+            <button class="text-button danger-text" id="clearHistoryButton" type="button">清空</button>
+          </div>
         </div>
         <div id="historyList" class="history-list"></div>
       </aside>
