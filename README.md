@@ -134,3 +134,7 @@ GET /api/transcripts
 ## 后续计划
 
 详见 [docs/development-plan.md](docs/development-plan.md)。
+
+## 更多文档
+
+- [后端启动与接口说明](docs/backend-guide.md)
