@@ -1,4 +1,3 @@
-import json
 import shutil
 from collections.abc import Iterator
 from pathlib import Path
@@ -23,7 +22,7 @@ def hotword_dir() -> Iterator[Path]:
 
 
 def create_dictionary(hotword_dir: Path) -> HotwordDictionary:
-    return HotwordDictionary(data_file=str(hotword_dir / f"{uuid4()}.json"))
+    return HotwordDictionary(database_file=":memory:")
 
 
 def test_hotword_dictionary_lists_builtin_items(hotword_dir: Path) -> None:
@@ -43,7 +42,7 @@ def test_hotword_dictionary_adds_custom_item(hotword_dir: Path) -> None:
     assert item.source == "小七"
     assert item.target == "七牛云助手"
     assert item.builtin is False
-    assert json.loads(dictionary.data_file.read_text(encoding="utf-8")) == {"小七": "七牛云助手"}
+    assert dictionary.get_hotword_map()["小七"] == "七牛云助手"
 
 
 def test_hotword_dictionary_rejects_duplicate_item(hotword_dir: Path) -> None:
@@ -84,6 +83,14 @@ def test_text_processor_uses_latest_custom_hotwords(hotword_dir: Path) -> None:
     result = processor.process("我 想 使用 小七 写 文档")
 
     assert result.text == "我想使用七牛云助手写文档。"
+
+
+def test_hotword_dictionary_reports_health_and_count(hotword_dir: Path) -> None:
+    dictionary = create_dictionary(hotword_dir)
+    dictionary.add("小七", "七牛云助手")
+
+    assert dictionary.ping() is True
+    assert dictionary.count_custom() == 1
 
 
 def test_default_rules_are_valid_utf8() -> None:

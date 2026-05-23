@@ -88,12 +88,30 @@ GET http://127.0.0.1:8000/api/transcripts
 可以复制 `.env.example` 为 `.env`，后续把环境变量放在 `.env` 中。当前代码读取这些配置：
 
 ```text
-SMART_DICTATE_DATA_FILE=backend/data/transcripts.json
+SMART_DICTATE_DATABASE_FILE=backend/data/smartdictate.sqlite3
 CORS_ALLOW_ORIGINS=http://127.0.0.1:5173,http://localhost:5173
 VITE_API_BASE_URL=http://127.0.0.1:8000
 ```
 
 注意：真实 API 密钥不能提交到 Git 仓库，只能放在本地 `.env` 或部署平台的环境变量里。
+
+## 数据持久化
+
+当前后端使用 SQLite 保存历史记录和用户自定义热词，默认数据库文件为：
+
+```text
+backend/data/smartdictate.sqlite3
+```
+
+这个文件属于本地运行数据，已经被 `.gitignore` 忽略，不会提交到代码仓库。相比 JSON 文件，SQLite 可以提供主键、唯一约束、索引和更稳定的读写行为，更适合作为本项目的本地持久化方案。
+
+健康检查接口会返回数据库可用状态：
+
+```http
+GET http://127.0.0.1:8000/api/health
+```
+
+返回内容会包含存储引擎、历史记录数量和自定义热词数量，便于确认后端不只是启动成功，而且数据层也可用。
 
 ## 是否应该接网上语音识别 API
 

@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.core.config import get_settings
+from backend.app.core.middleware import RequestContextMiddleware
 from backend.app.models import (
     HotwordCreateRequest,
     HotwordItem,
@@ -27,15 +28,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RequestContextMiddleware)
 
-hotword_dictionary = HotwordDictionary(data_file=settings.hotword_file)
+hotword_dictionary = HotwordDictionary(database_file=settings.database_file)
 processor = TextProcessor(rules_provider=hotword_dictionary.get_text_rules)
-store = TranscriptStore(data_file=settings.data_file)
+store = TranscriptStore(database_file=settings.database_file)
 
 
 @app.get("/api/health")
-def health_check() -> dict[str, str]:
-    return {"status": "ok"}
+def health_check() -> dict[str, object]:
+    database_ready = store.ping() and hotword_dictionary.ping()
+    return {
+        "status": "ok" if database_ready else "degraded",
+        "version": settings.app_version,
+        "storage": {
+            "engine": "sqlite",
+            "ready": database_ready,
+            "transcript_count": store.count(),
+            "custom_hotword_count": hotword_dictionary.count_custom(),
+        },
+    }
 
 
 @app.post("/api/transcripts/process", response_model=TranscriptItem)
