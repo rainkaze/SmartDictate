@@ -2,6 +2,7 @@ import re
 from dataclasses import dataclass
 
 from backend.app.models import Scene, TranscriptMetrics
+from backend.app.services.text_rules import TextRules, load_text_rules
 
 
 @dataclass(frozen=True)
@@ -11,24 +12,10 @@ class ProcessedText:
 
 
 class TextProcessor:
-    filler_words = ("嗯", "呃", "额", "啊", "那个", "就是", "然后然后")
-    hotwords = {
-        "七牛": "七牛云",
-        "fast api": "FastAPI",
-        "法斯特 api": "FastAPI",
-        "派森": "Python",
-        "威特": "Vite",
-        "github": "GitHub",
-        "gitee": "Gitee",
-        "read me": "README",
-    }
-    scene_prefixes: dict[Scene, str] = {
-        "general": "",
-        "meeting": "会议纪要：",
-        "study": "学习笔记：",
-        "message": "",
-        "code_note": "代码说明：",
-    }
+    """负责把语音识别得到的原始文本整理成更适合直接使用的文本。"""
+
+    def __init__(self, rules: TextRules | None = None) -> None:
+        self.rules = rules or load_text_rules()
 
     def process(self, text: str, scene: Scene = "general") -> ProcessedText:
         normalized = self._normalize_space(text)
@@ -46,19 +33,20 @@ class TextProcessor:
         return ProcessedText(text=formatted, metrics=metrics)
 
     def _normalize_space(self, text: str) -> str:
+        text = text.replace("\u3000", " ")
         return re.sub(r"\s+", " ", text).strip()
 
     def _remove_fillers(self, text: str) -> tuple[str, int]:
         removed_count = 0
         cleaned = text
-        for word in self.filler_words:
+        for word in self.rules.filler_words:
             cleaned, count = re.subn(rf"(?<!\w){re.escape(word)}(?!\w)", "", cleaned)
             removed_count += count
         return self._normalize_space(cleaned), removed_count
 
     def _apply_hotwords(self, text: str) -> str:
         corrected = text
-        for source, target in self.hotwords.items():
+        for source, target in self.rules.hotwords.items():
             corrected = re.sub(re.escape(source), target, corrected, flags=re.IGNORECASE)
         return corrected
 
@@ -68,14 +56,22 @@ class TextProcessor:
 
         text = re.sub(r"\s*([，。！？；：,.!?;:])\s*", r"\1", text)
         text = re.sub(r"\s+", "，", text)
+        text = self._deduplicate_punctuation(text)
 
         if text[-1] not in "。！？!?":
             text += "。"
 
         return text
 
+    def _deduplicate_punctuation(self, text: str) -> str:
+        text = re.sub(r"[，,]{2,}", "，", text)
+        text = re.sub(r"[。\.]{2,}", "。", text)
+        text = re.sub(r"[！!]{2,}", "！", text)
+        text = re.sub(r"[？?]{2,}", "？", text)
+        return text
+
     def _format_by_scene(self, text: str, scene: Scene) -> str:
-        prefix = self.scene_prefixes.get(scene, "")
+        prefix = self.rules.scene_prefixes.get(scene, "")
         if not prefix:
             return text
         return f"{prefix}{text}"

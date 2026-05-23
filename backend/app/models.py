@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 from uuid import uuid4
 
@@ -41,5 +41,5 @@ class TranscriptItem(BaseModel):
             processed_text=processed_text,
             scene=scene,
             metrics=metrics,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
