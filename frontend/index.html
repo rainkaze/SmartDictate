@@ -82,15 +82,30 @@
         </section>
       </section>
 
-      <aside class="history-panel">
-        <div class="pane-header">
-          <h2>最近记录</h2>
-          <div class="history-toolbar">
-            <button class="text-button" id="refreshHistoryButton" type="button">刷新</button>
-            <button class="text-button danger-text" id="clearHistoryButton" type="button">清空</button>
+      <aside class="side-panel">
+        <section class="dictionary-panel">
+          <div class="pane-header">
+            <h2>热词字典</h2>
+            <span id="hotwordStatus">未加载</span>
           </div>
-        </div>
-        <div id="historyList" class="history-list"></div>
+          <form class="hotword-form" id="hotwordForm">
+            <input id="hotwordSource" maxlength="80" placeholder="识别词，如 小七" />
+            <input id="hotwordTarget" maxlength="80" placeholder="标准词，如 七牛云助手" />
+            <button class="secondary-button" type="submit">添加</button>
+          </form>
+          <div id="hotwordList" class="hotword-list"></div>
+        </section>
+
+        <section class="history-panel">
+          <div class="pane-header">
+            <h2>最近记录</h2>
+            <div class="history-toolbar">
+              <button class="text-button" id="refreshHistoryButton" type="button">刷新</button>
+              <button class="text-button danger-text" id="clearHistoryButton" type="button">清空</button>
+            </div>
+          </div>
+          <div id="historyList" class="history-list"></div>
+        </section>
       </aside>
     </main>
 
