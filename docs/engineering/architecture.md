@@ -71,7 +71,7 @@ backend/app/services/hotwords.py
 负责内置热词和用户自定义热词的合并、添加和删除。
 
 ```text
-backend/app/services/storage.py
+backend/app/services/transcript_store.py
 ```
 
 负责历史记录的本地读写、删除和清空。

@@ -60,14 +60,14 @@ DELETE /api/transcripts
 
 ## 存储方式
 
-MVP 阶段使用本地 JSON 文件保存历史记录：
+当前版本使用本地 SQLite 数据库保存历史记录：
 
 ```text
-backend/data/transcripts.json
+backend/data/smartdictate.sqlite3
 ```
 
 该文件已被 `.gitignore` 忽略，不会提交到仓库。这样可以避免把本地测试数据污染到代码仓库。
 
 ## 工程取舍
 
-当前实现优先保证本地可运行、便于演示和便于评审复现。后续如果需要多设备同步或多用户协作，可以把存储层替换为 SQLite、PostgreSQL 或云端数据库，但这不属于当前 MVP 的优先范围。
+当前实现优先保证本地可运行、便于演示和便于评审复现。后续如果需要多设备同步或多用户协作，可以把存储层替换为 PostgreSQL、MySQL 或云端数据库，但这不属于当前 MVP 的优先范围。
