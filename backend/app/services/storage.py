@@ -15,8 +15,9 @@ class TranscriptStore:
     def add(self, item: TranscriptItem) -> None:
         items = [item, *self.list_recent()]
         items = items[: self.limit]
+        payload = [entry.model_dump(mode="json") for entry in items]
         self.data_file.write_text(
-            json.dumps([entry.model_dump(mode="json") for entry in items], ensure_ascii=False, indent=2),
+            json.dumps(payload, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
 
