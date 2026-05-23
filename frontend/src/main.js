@@ -1,4 +1,10 @@
-import { checkHealth, listTranscripts, processTranscript } from "./modules/api-client.js";
+import {
+  checkHealth,
+  clearTranscripts,
+  deleteTranscript,
+  listTranscripts,
+  processTranscript,
+} from "./modules/api-client.js";
 import { createSpeechRecognitionController } from "./modules/speech-recognition.js";
 import { escapeHtml } from "./modules/html.js";
 import "./styles.css";
@@ -11,6 +17,7 @@ const elements = {
   copyButton: document.querySelector("#copyButton"),
   clearButton: document.querySelector("#clearButton"),
   refreshHistoryButton: document.querySelector("#refreshHistoryButton"),
+  clearHistoryButton: document.querySelector("#clearHistoryButton"),
   recognitionStatus: document.querySelector("#recognitionStatus"),
   interimText: document.querySelector("#interimText"),
   copyStatus: document.querySelector("#copyStatus"),
@@ -26,6 +33,7 @@ const elements = {
 const state = {
   startedAt: null,
   timerId: null,
+  historyItems: [],
 };
 
 const speechController = createSpeechRecognitionController({
@@ -126,14 +134,7 @@ async function handleProcessText() {
 }
 
 async function handleCopyResult() {
-  const text = elements.processedText.value.trim();
-  if (!text) {
-    elements.copyStatus.textContent = "无可复制内容";
-    return;
-  }
-
-  await navigator.clipboard.writeText(text);
-  elements.copyStatus.textContent = "已复制";
+  await copyText(elements.processedText.value.trim(), elements.copyStatus);
 }
 
 function handleClearText() {
@@ -159,10 +160,12 @@ function renderMetrics(metrics) {
 
 async function loadHistory() {
   try {
-    const items = await listTranscripts();
-    renderHistory(items);
+    state.historyItems = await listTranscripts({ limit: 10 });
+    renderHistory(state.historyItems);
+    setApiStatus(true);
   } catch {
     elements.historyList.innerHTML = '<p class="history-time">启动后端后可查看历史记录。</p>';
+    setApiStatus(false);
   }
 }
 
@@ -172,27 +175,82 @@ function renderHistory(items) {
     return;
   }
 
-  elements.historyList.innerHTML = items
-    .map((item) => {
-      const time = new Date(item.created_at).toLocaleString();
-      return `
-        <article class="history-item">
-          <p class="history-text">${escapeHtml(item.processed_text)}</p>
-          <span class="history-time">${time} · ${sceneLabel(item.scene)}</span>
-          <button class="secondary-button" type="button" data-history-id="${item.id}">填入结果</button>
-        </article>
-      `;
-    })
-    .join("");
+  elements.historyList.innerHTML = items.map(renderHistoryItem).join("");
 
-  for (const button of elements.historyList.querySelectorAll("button[data-history-id]")) {
+  for (const button of elements.historyList.querySelectorAll("button[data-action]")) {
     button.addEventListener("click", () => {
-      const item = items.find((entry) => entry.id === button.dataset.historyId);
-      if (item) {
-        elements.processedText.value = item.processed_text;
-        updateMetrics();
-      }
+      handleHistoryAction(button.dataset.action, button.dataset.historyId);
     });
+  }
+}
+
+function renderHistoryItem(item) {
+  const time = new Date(item.created_at).toLocaleString();
+  return `
+    <article class="history-item">
+      <p class="history-text">${escapeHtml(item.processed_text)}</p>
+      <div class="history-meta">
+        <span>${time}</span>
+        <span>${sceneLabel(item.scene)}</span>
+        <span>${item.metrics.processed_length} 字</span>
+      </div>
+      <div class="history-actions">
+        <button class="secondary-button" type="button" data-action="fill" data-history-id="${item.id}">填入</button>
+        <button class="secondary-button" type="button" data-action="copy" data-history-id="${item.id}">复制</button>
+        <button class="text-button danger-text" type="button" data-action="delete" data-history-id="${item.id}">删除</button>
+      </div>
+    </article>
+  `;
+}
+
+async function handleHistoryAction(action, id) {
+  const item = state.historyItems.find((entry) => entry.id === id);
+  if (!item) {
+    return;
+  }
+
+  if (action === "fill") {
+    elements.processedText.value = item.processed_text;
+    updateMetrics();
+    return;
+  }
+
+  if (action === "copy") {
+    await copyText(item.processed_text);
+    return;
+  }
+
+  if (action === "delete") {
+    await deleteTranscript(id);
+    await loadHistory();
+  }
+}
+
+async function handleClearHistory() {
+  if (!state.historyItems.length) {
+    return;
+  }
+
+  const confirmed = window.confirm("确定要清空全部历史记录吗？此操作不可撤销。");
+  if (!confirmed) {
+    return;
+  }
+
+  await clearTranscripts();
+  await loadHistory();
+}
+
+async function copyText(text, statusElement = null) {
+  if (!text) {
+    if (statusElement) {
+      statusElement.textContent = "无可复制内容";
+    }
+    return;
+  }
+
+  await navigator.clipboard.writeText(text);
+  if (statusElement) {
+    statusElement.textContent = "已复制";
   }
 }
 
@@ -215,6 +273,7 @@ function setupEventListeners() {
   elements.copyButton.addEventListener("click", handleCopyResult);
   elements.clearButton.addEventListener("click", handleClearText);
   elements.refreshHistoryButton.addEventListener("click", loadHistory);
+  elements.clearHistoryButton.addEventListener("click", handleClearHistory);
   elements.rawText.addEventListener("input", updateMetrics);
   elements.processedText.addEventListener("input", updateMetrics);
 }
