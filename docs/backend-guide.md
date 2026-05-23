@@ -14,13 +14,42 @@
 
 ## 启动方式
 
-在项目根目录执行：
+必须在项目根目录执行。项目根目录是：
+
+```text
+D:\Projects\PyCharmProjects\SmartDictate
+```
+
+如果你当前在 `D:\`、`frontend` 或其他目录，直接执行 `uvicorn backend.app.main:app` 会导致 Python 找不到 `backend` 包。
+
+推荐方式一：使用启动脚本。
 
 ```bash
+scripts\start-backend.cmd
+```
+
+推荐方式二：手动进入项目根目录后启动。
+
+```bash
+cd /d D:\Projects\PyCharmProjects\SmartDictate
 python -m venv .venv
 .\.venv\Scripts\activate
 python -m pip install -r requirements.txt
-uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
+```
+
+如果你使用 Conda 环境 `SmartDictate`，可以这样启动：
+
+```bash
+cd /d D:\Projects\PyCharmProjects\SmartDictate
+conda activate SmartDictate
+python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
+```
+
+如果你希望开发时自动热重载，并且本机环境允许多进程监听，可以使用：
+
+```bash
+python -m uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 启动成功后，浏览器访问：
