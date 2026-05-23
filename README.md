@@ -157,3 +157,4 @@ GET /api/transcripts
 - [后端启动与接口说明](docs/backend-guide.md)
 - [文本处理规则说明](docs/text-processing-guide.md)
 - [语音输入前端说明](docs/voice-input-guide.md)
+- [历史记录功能说明](docs/history-records-guide.md)
