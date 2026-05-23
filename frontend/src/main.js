@@ -16,6 +16,7 @@ const elements = {
   apiStatus: document.querySelector("#apiStatus"),
   sceneSelect: document.querySelector("#sceneSelect"),
   recordButton: document.querySelector("#recordButton"),
+  sampleButton: document.querySelector("#sampleButton"),
   processButton: document.querySelector("#processButton"),
   copyButton: document.querySelector("#copyButton"),
   clearButton: document.querySelector("#clearButton"),
@@ -37,6 +38,8 @@ const elements = {
   elapsedSeconds: document.querySelector("#elapsedSeconds"),
   historyList: document.querySelector("#historyList"),
 };
+
+const sampleText = "嗯 我想用派森开发七牛语音输入法，然后让小七帮我整理文档";
 
 const state = {
   startedAt: null,
@@ -153,6 +156,16 @@ function handleClearText() {
   elements.removedFillers.textContent = "0";
   state.startedAt = null;
   stopElapsedTimer();
+  updateMetrics();
+}
+
+function handleFillSample() {
+  elements.rawText.value = sampleText;
+  elements.processedText.value = "";
+  elements.copyStatus.textContent = "未复制";
+  elements.removedFillers.textContent = "0";
+  elements.recognitionStatus.textContent = "已填入示例";
+  elements.interimText.textContent = "可以直接点击“整理文本”验证前后端联动。";
   updateMetrics();
 }
 
@@ -348,6 +361,7 @@ function setupEventListeners() {
   elements.recordButton.addEventListener("click", () => {
     speechController.toggle();
   });
+  elements.sampleButton.addEventListener("click", handleFillSample);
   elements.processButton.addEventListener("click", handleProcessText);
   elements.copyButton.addEventListener("click", handleCopyResult);
   elements.clearButton.addEventListener("click", handleClearText);

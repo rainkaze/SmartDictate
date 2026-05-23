@@ -6,7 +6,7 @@ def test_process_removes_fillers_and_adds_punctuation() -> None:
 
     result = processor.process("嗯 我 想 用 派森 开发 七牛 语音输入法", "general")
 
-    assert result.text == "我，想，用，Python，开发，七牛云，语音输入法。"
+    assert result.text == "我想用 Python 开发七牛云语音输入法。"
     assert result.metrics.removed_fillers == 1
 
 
@@ -15,7 +15,7 @@ def test_process_applies_scene_prefix() -> None:
 
     result = processor.process("今天 讨论 项目 进度", "meeting")
 
-    assert result.text == "会议纪要：今天，讨论，项目，进度。"
+    assert result.text == "会议纪要：今天讨论项目进度。"
 
 
 def test_process_keeps_existing_punctuation_readable() -> None:
@@ -31,4 +31,20 @@ def test_process_applies_english_hotwords_case_insensitively() -> None:
 
     result = processor.process("github read me fast api", "code_note")
 
-    assert result.text == "代码说明：GitHub，README，FastAPI。"
+    assert result.text == "代码说明：GitHub README FastAPI。"
+
+
+def test_process_inserts_light_pause_before_connector_words() -> None:
+    processor = TextProcessor()
+
+    result = processor.process("我 想 使用 小七 写 文档 然后 复制 结果")
+
+    assert result.text == "我想使用小七写文档，然后复制结果。"
+
+
+def test_process_adds_spacing_around_latin_hotwords() -> None:
+    processor = TextProcessor()
+
+    result = processor.process("我想用派森开发七牛语音输入法")
+
+    assert result.text == "我想用 Python 开发七牛云语音输入法。"

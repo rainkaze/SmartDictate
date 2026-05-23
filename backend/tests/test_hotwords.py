@@ -1,26 +1,33 @@
 import json
 import shutil
+from collections.abc import Iterator
 from pathlib import Path
 from uuid import uuid4
 
+import pytest
 from backend.app.services.hotwords import HotwordDictionary
 from backend.app.services.text_processor import TextProcessor
 from backend.app.services.text_rules import load_text_rules
 
-TEST_TMP_DIR = Path("backend/data/test-tmp-hotwords")
+TEST_RUNTIME_DIR = Path("backend/data/test-runtime/hotwords")
 
 
-def create_dictionary() -> HotwordDictionary:
-    TEST_TMP_DIR.mkdir(parents=True, exist_ok=True)
-    return HotwordDictionary(data_file=str(TEST_TMP_DIR / f"{uuid4()}.json"))
+@pytest.fixture()
+def hotword_dir() -> Iterator[Path]:
+    test_dir = TEST_RUNTIME_DIR / uuid4().hex
+    test_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        yield test_dir
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
 
 
-def teardown_module() -> None:
-    shutil.rmtree(TEST_TMP_DIR, ignore_errors=True)
+def create_dictionary(hotword_dir: Path) -> HotwordDictionary:
+    return HotwordDictionary(data_file=str(hotword_dir / f"{uuid4()}.json"))
 
 
-def test_hotword_dictionary_lists_builtin_items() -> None:
-    dictionary = create_dictionary()
+def test_hotword_dictionary_lists_builtin_items(hotword_dir: Path) -> None:
+    dictionary = create_dictionary(hotword_dir)
 
     items = dictionary.list_items()
 
@@ -28,8 +35,8 @@ def test_hotword_dictionary_lists_builtin_items() -> None:
     assert all(item.builtin for item in items)
 
 
-def test_hotword_dictionary_adds_custom_item() -> None:
-    dictionary = create_dictionary()
+def test_hotword_dictionary_adds_custom_item(hotword_dir: Path) -> None:
+    dictionary = create_dictionary(hotword_dir)
 
     item = dictionary.add(" 小七 ", " 七牛云助手 ")
 
@@ -39,8 +46,8 @@ def test_hotword_dictionary_adds_custom_item() -> None:
     assert json.loads(dictionary.data_file.read_text(encoding="utf-8")) == {"小七": "七牛云助手"}
 
 
-def test_hotword_dictionary_rejects_duplicate_item() -> None:
-    dictionary = create_dictionary()
+def test_hotword_dictionary_rejects_duplicate_item(hotword_dir: Path) -> None:
+    dictionary = create_dictionary(hotword_dir)
 
     try:
         dictionary.add("派森", "Python")
@@ -50,8 +57,8 @@ def test_hotword_dictionary_rejects_duplicate_item() -> None:
         raise AssertionError("重复热词应该被拒绝")
 
 
-def test_hotword_dictionary_rejects_blank_item() -> None:
-    dictionary = create_dictionary()
+def test_hotword_dictionary_rejects_blank_item(hotword_dir: Path) -> None:
+    dictionary = create_dictionary(hotword_dir)
 
     try:
         dictionary.add("   ", " 七牛云助手 ")
@@ -61,22 +68,22 @@ def test_hotword_dictionary_rejects_blank_item() -> None:
         raise AssertionError("空热词应该被拒绝")
 
 
-def test_hotword_dictionary_deletes_custom_item() -> None:
-    dictionary = create_dictionary()
+def test_hotword_dictionary_deletes_custom_item(hotword_dir: Path) -> None:
+    dictionary = create_dictionary(hotword_dir)
     dictionary.add("小七", "七牛云助手")
 
     assert dictionary.delete("小七") is True
     assert dictionary.delete("派森") is False
 
 
-def test_text_processor_uses_latest_custom_hotwords() -> None:
-    dictionary = create_dictionary()
+def test_text_processor_uses_latest_custom_hotwords(hotword_dir: Path) -> None:
+    dictionary = create_dictionary(hotword_dir)
     processor = TextProcessor(rules_provider=dictionary.get_text_rules)
 
     dictionary.add("小七", "七牛云助手")
     result = processor.process("我 想 使用 小七 写 文档")
 
-    assert result.text == "我，想，使用，七牛云助手，写，文档。"
+    assert result.text == "我想使用七牛云助手写文档。"
 
 
 def test_default_rules_are_valid_utf8() -> None:

@@ -15,6 +15,8 @@ class ProcessedText:
 class TextProcessor:
     """负责把语音识别得到的原始文本整理成更适合直接使用的文本。"""
 
+    pause_words = ("然后", "但是", "所以", "因为", "如果", "同时", "另外")
+
     def __init__(self, rules_provider: Callable[[], TextRules] | None = None) -> None:
         self.rules_provider = rules_provider or load_text_rules
 
@@ -23,6 +25,7 @@ class TextProcessor:
         normalized = self._normalize_space(text)
         without_fillers, removed_count = self._remove_fillers(normalized, rules)
         corrected = self._apply_hotwords(without_fillers, rules)
+        corrected = self._normalize_latin_spacing(corrected)
         punctuated = self._apply_punctuation(corrected)
         formatted = self._format_by_scene(punctuated, scene, rules)
 
@@ -57,18 +60,48 @@ class TextProcessor:
             corrected = re.sub(re.escape(source), target, corrected, flags=re.IGNORECASE)
         return corrected
 
+    def _normalize_latin_spacing(self, text: str) -> str:
+        text = re.sub(r"([\u4e00-\u9fff])([A-Za-z0-9][A-Za-z0-9.+#-]*)", r"\1 \2", text)
+        text = re.sub(r"([A-Za-z0-9.+#-]*[A-Za-z0-9])([\u4e00-\u9fff])", r"\1 \2", text)
+        return self._normalize_space(text)
+
     def _apply_punctuation(self, text: str) -> str:
         if not text:
             return ""
 
         text = re.sub(r"\s*([，。！？；：,.!?;:])\s*", r"\1", text)
-        text = re.sub(r"\s+", "，", text)
+        text = self._join_spoken_tokens(text)
+        text = self._insert_light_pauses(text)
         text = self._deduplicate_punctuation(text)
 
         if text[-1] not in "。！？!?":
             text += "。"
 
         return text
+
+    def _join_spoken_tokens(self, text: str) -> str:
+        tokens = [token for token in text.split(" ") if token]
+        if not tokens:
+            return ""
+
+        result = tokens[0]
+        previous = tokens[0]
+        for token in tokens[1:]:
+            separator = " " if self._should_keep_space(previous, token) else ""
+            result = f"{result}{separator}{token}"
+            previous = token
+        return result
+
+    def _should_keep_space(self, previous: str, current: str) -> bool:
+        return self._has_latin_or_digit(previous) or self._has_latin_or_digit(current)
+
+    def _has_latin_or_digit(self, value: str) -> bool:
+        return bool(re.search(r"[A-Za-z0-9]", value))
+
+    def _insert_light_pauses(self, text: str) -> str:
+        for word in self.pause_words:
+            text = re.sub(rf"(?<![，。！？；：]){re.escape(word)}", f"，{word}", text)
+        return text.lstrip("，")
 
     def _deduplicate_punctuation(self, text: str) -> str:
         text = re.sub(r"[，,]{2,}", "，", text)
