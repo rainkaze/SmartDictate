@@ -67,6 +67,7 @@ textarea {
 .control-panel,
 .pane-header,
 .actions,
+.recognition-panel,
 .metrics-grid {
   display: flex;
   align-items: center;
@@ -122,6 +123,39 @@ h2 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfd;
+}
+
+.recognition-panel {
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 76px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f9fbfb;
+}
+
+.recognition-panel > div {
+  display: grid;
+  gap: 4px;
+  min-width: 140px;
+}
+
+.recognition-panel strong {
+  font-size: 18px;
+}
+
+.recognition-panel p {
+  flex: 1;
+  min-width: 0;
+  color: var(--muted);
+  line-height: 1.6;
+  text-align: right;
+}
+
+.eyebrow {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .field {
@@ -293,9 +327,14 @@ textarea {
   }
 
   .topbar,
-  .control-panel {
+  .control-panel,
+  .recognition-panel {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .recognition-panel p {
+    text-align: left;
   }
 
   .actions {

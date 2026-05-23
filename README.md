@@ -67,19 +67,36 @@ SmartDictate/
 
 ### 1. 后端
 
+推荐使用脚本启动：
+
 ```bash
+scripts\start-backend.cmd
+```
+
+也可以手动从项目根目录启动：
+
+```bash
+cd /d D:\Projects\PyCharmProjects\SmartDictate
 python -m venv .venv
 .venv\Scripts\activate
 python -m pip install -r requirements.txt
-uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
 ```
 
 ### 2. 前端
 
+推荐使用脚本启动：
+
+```bash
+scripts\start-frontend.cmd
+```
+
+也可以手动启动：
+
 ```bash
 cd frontend
 npm install
-npm run dev
+npm.cmd run dev
 ```
 
 访问：
@@ -139,3 +156,4 @@ GET /api/transcripts
 
 - [后端启动与接口说明](docs/backend-guide.md)
 - [文本处理规则说明](docs/text-processing-guide.md)
+- [语音输入前端说明](docs/voice-input-guide.md)
