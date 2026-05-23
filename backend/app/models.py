@@ -12,6 +12,17 @@ class ProcessTranscriptRequest(BaseModel):
     scene: Scene = "general"
 
 
+class HotwordCreateRequest(BaseModel):
+    source: str = Field(..., min_length=1, max_length=80)
+    target: str = Field(..., min_length=1, max_length=80)
+
+
+class HotwordItem(BaseModel):
+    source: str
+    target: str
+    builtin: bool = False
+
+
 class TranscriptMetrics(BaseModel):
     raw_length: int
     processed_length: int

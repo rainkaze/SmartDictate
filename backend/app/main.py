@@ -1,8 +1,14 @@
-from fastapi import FastAPI, Query, Response, status
+from fastapi import FastAPI, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.core.config import get_settings
-from backend.app.models import ProcessTranscriptRequest, TranscriptItem
+from backend.app.models import (
+    HotwordCreateRequest,
+    HotwordItem,
+    ProcessTranscriptRequest,
+    TranscriptItem,
+)
+from backend.app.services.hotwords import HotwordDictionary
 from backend.app.services.storage import TranscriptStore
 from backend.app.services.text_processor import TextProcessor
 
@@ -22,7 +28,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-processor = TextProcessor()
+hotword_dictionary = HotwordDictionary(data_file=settings.hotword_file)
+processor = TextProcessor(rules_provider=hotword_dictionary.get_text_rules)
 store = TranscriptStore(data_file=settings.data_file)
 
 
@@ -59,3 +66,26 @@ def delete_transcript(transcript_id: str, response: Response) -> None:
 @app.delete("/api/transcripts", status_code=status.HTTP_204_NO_CONTENT)
 def clear_transcripts() -> None:
     store.clear()
+
+
+@app.get("/api/hotwords", response_model=list[HotwordItem])
+def list_hotwords() -> list[HotwordItem]:
+    return hotword_dictionary.list_items()
+
+
+@app.post("/api/hotwords", response_model=HotwordItem, status_code=status.HTTP_201_CREATED)
+def create_hotword(payload: HotwordCreateRequest) -> HotwordItem:
+    try:
+        return hotword_dictionary.add(payload.source, payload.target)
+    except ValueError as exc:
+        status_code = status.HTTP_400_BAD_REQUEST
+        if str(exc) == "热词已存在":
+            status_code = status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+
+
+@app.delete("/api/hotwords/{source}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_hotword(source: str, response: Response) -> None:
+    deleted = hotword_dictionary.delete(source)
+    if not deleted:
+        response.status_code = status.HTTP_404_NOT_FOUND
