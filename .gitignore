@@ -15,8 +15,6 @@ env/
 backend/data/*.json
 backend/data/*.sqlite3
 backend/data/*.sqlite3-*
-backend/data/test-tmp/
-backend/data/test-tmp-hotwords/
 backend/data/test-runtime/
 !backend/data/.gitkeep
 
