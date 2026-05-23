@@ -13,6 +13,7 @@ env/
 # Local data
 backend/data/*.json
 backend/data/test-tmp/
+backend/data/test-tmp-hotwords/
 !backend/data/.gitkeep
 
 # Frontend

@@ -1,4 +1,5 @@
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from backend.app.models import Scene, TranscriptMetrics
@@ -14,15 +15,16 @@ class ProcessedText:
 class TextProcessor:
     """负责把语音识别得到的原始文本整理成更适合直接使用的文本。"""
 
-    def __init__(self, rules: TextRules | None = None) -> None:
-        self.rules = rules or load_text_rules()
+    def __init__(self, rules_provider: Callable[[], TextRules] | None = None) -> None:
+        self.rules_provider = rules_provider or load_text_rules
 
     def process(self, text: str, scene: Scene = "general") -> ProcessedText:
+        rules = self.rules_provider()
         normalized = self._normalize_space(text)
-        without_fillers, removed_count = self._remove_fillers(normalized)
-        corrected = self._apply_hotwords(without_fillers)
+        without_fillers, removed_count = self._remove_fillers(normalized, rules)
+        corrected = self._apply_hotwords(without_fillers, rules)
         punctuated = self._apply_punctuation(corrected)
-        formatted = self._format_by_scene(punctuated, scene)
+        formatted = self._format_by_scene(punctuated, scene, rules)
 
         metrics = TranscriptMetrics(
             raw_length=len(text),
@@ -36,17 +38,22 @@ class TextProcessor:
         text = text.replace("\u3000", " ")
         return re.sub(r"\s+", " ", text).strip()
 
-    def _remove_fillers(self, text: str) -> tuple[str, int]:
+    def _remove_fillers(self, text: str, rules: TextRules) -> tuple[str, int]:
         removed_count = 0
         cleaned = text
-        for word in self.rules.filler_words:
+        for word in rules.filler_words:
             cleaned, count = re.subn(rf"(?<!\w){re.escape(word)}(?!\w)", "", cleaned)
             removed_count += count
         return self._normalize_space(cleaned), removed_count
 
-    def _apply_hotwords(self, text: str) -> str:
+    def _apply_hotwords(self, text: str, rules: TextRules) -> str:
         corrected = text
-        for source, target in self.rules.hotwords.items():
+        sorted_hotwords = sorted(
+            rules.hotwords.items(),
+            key=lambda item: len(item[0]),
+            reverse=True,
+        )
+        for source, target in sorted_hotwords:
             corrected = re.sub(re.escape(source), target, corrected, flags=re.IGNORECASE)
         return corrected
 
@@ -70,8 +77,8 @@ class TextProcessor:
         text = re.sub(r"[？?]{2,}", "？", text)
         return text
 
-    def _format_by_scene(self, text: str, scene: Scene) -> str:
-        prefix = self.rules.scene_prefixes.get(scene, "")
+    def _format_by_scene(self, text: str, scene: Scene, rules: TextRules) -> str:
+        prefix = rules.scene_prefixes.get(scene, "")
         if not prefix:
             return text
         return f"{prefix}{text}"

@@ -1,7 +1,10 @@
 import {
   checkHealth,
   clearTranscripts,
+  createHotword,
+  deleteHotword,
   deleteTranscript,
+  listHotwords,
   listTranscripts,
   processTranscript,
 } from "./modules/api-client.js";
@@ -18,6 +21,11 @@ const elements = {
   clearButton: document.querySelector("#clearButton"),
   refreshHistoryButton: document.querySelector("#refreshHistoryButton"),
   clearHistoryButton: document.querySelector("#clearHistoryButton"),
+  hotwordForm: document.querySelector("#hotwordForm"),
+  hotwordSource: document.querySelector("#hotwordSource"),
+  hotwordTarget: document.querySelector("#hotwordTarget"),
+  hotwordStatus: document.querySelector("#hotwordStatus"),
+  hotwordList: document.querySelector("#hotwordList"),
   recognitionStatus: document.querySelector("#recognitionStatus"),
   interimText: document.querySelector("#interimText"),
   copyStatus: document.querySelector("#copyStatus"),
@@ -34,6 +42,7 @@ const state = {
   startedAt: null,
   timerId: null,
   historyItems: [],
+  hotwordItems: [],
 };
 
 const speechController = createSpeechRecognitionController({
@@ -240,6 +249,76 @@ async function handleClearHistory() {
   await loadHistory();
 }
 
+async function loadHotwords() {
+  try {
+    state.hotwordItems = await listHotwords();
+    renderHotwords(state.hotwordItems);
+    elements.hotwordStatus.textContent = `${state.hotwordItems.length} 条`;
+    setApiStatus(true);
+  } catch {
+    elements.hotwordStatus.textContent = "加载失败";
+    elements.hotwordList.innerHTML = '<p class="history-time">启动后端后可维护热词。</p>';
+    setApiStatus(false);
+  }
+}
+
+function renderHotwords(items) {
+  if (!items.length) {
+    elements.hotwordList.innerHTML = '<p class="history-time">暂无热词。</p>';
+    return;
+  }
+
+  elements.hotwordList.innerHTML = items
+    .map((item) => {
+      const badge = item.builtin ? "内置" : "自定义";
+      const action = item.builtin
+        ? '<span class="history-time">不可删除</span>'
+        : `<button class="text-button danger-text" type="button" data-hotword-source="${escapeHtml(item.source)}">删除</button>`;
+      return `
+        <article class="hotword-item">
+          <div>
+            <strong>${escapeHtml(item.source)}</strong>
+            <span>→</span>
+            <strong>${escapeHtml(item.target)}</strong>
+          </div>
+          <div class="hotword-meta">
+            <span>${badge}</span>
+            ${action}
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+
+  for (const button of elements.hotwordList.querySelectorAll("button[data-hotword-source]")) {
+    button.addEventListener("click", async () => {
+      await deleteHotword(button.dataset.hotwordSource);
+      await loadHotwords();
+    });
+  }
+}
+
+async function handleAddHotword(event) {
+  event.preventDefault();
+  const source = elements.hotwordSource.value.trim();
+  const target = elements.hotwordTarget.value.trim();
+
+  if (!source || !target) {
+    elements.hotwordStatus.textContent = "请填写完整";
+    return;
+  }
+
+  try {
+    await createHotword({ source, target });
+    elements.hotwordSource.value = "";
+    elements.hotwordTarget.value = "";
+    await loadHotwords();
+    elements.hotwordStatus.textContent = "已添加";
+  } catch (error) {
+    elements.hotwordStatus.textContent = error.message;
+  }
+}
+
 async function copyText(text, statusElement = null) {
   if (!text) {
     if (statusElement) {
@@ -274,6 +353,7 @@ function setupEventListeners() {
   elements.clearButton.addEventListener("click", handleClearText);
   elements.refreshHistoryButton.addEventListener("click", loadHistory);
   elements.clearHistoryButton.addEventListener("click", handleClearHistory);
+  elements.hotwordForm.addEventListener("submit", handleAddHotword);
   elements.rawText.addEventListener("input", updateMetrics);
   elements.processedText.addEventListener("input", updateMetrics);
 }
@@ -292,4 +372,5 @@ function setupSpeechSupport() {
 setupEventListeners();
 setupSpeechSupport();
 refreshApiStatus();
+loadHotwords();
 loadHistory();

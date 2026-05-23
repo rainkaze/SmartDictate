@@ -158,3 +158,4 @@ GET /api/transcripts
 - [文本处理规则说明](docs/text-processing-guide.md)
 - [语音输入前端说明](docs/voice-input-guide.md)
 - [历史记录功能说明](docs/history-records-guide.md)
+- [热词字典功能说明](docs/hotword-dictionary-guide.md)
