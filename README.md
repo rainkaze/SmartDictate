@@ -138,3 +138,4 @@ GET /api/transcripts
 ## 更多文档
 
 - [后端启动与接口说明](docs/backend-guide.md)
+- [文本处理规则说明](docs/text-processing-guide.md)
