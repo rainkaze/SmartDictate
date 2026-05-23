@@ -1,11 +1,23 @@
 import shutil
+from collections.abc import Iterator
 from pathlib import Path
 from uuid import uuid4
 
+import pytest
 from backend.app.models import TranscriptItem, TranscriptMetrics
 from backend.app.services.storage import TranscriptStore
 
-TEST_TMP_DIR = Path("backend/data/test-tmp")
+TEST_RUNTIME_DIR = Path("backend/data/test-runtime/storage")
+
+
+@pytest.fixture()
+def storage_dir() -> Iterator[Path]:
+    test_dir = TEST_RUNTIME_DIR / uuid4().hex
+    test_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        yield test_dir
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
 
 
 def create_item(text: str) -> TranscriptItem:
@@ -22,18 +34,13 @@ def create_item(text: str) -> TranscriptItem:
     )
 
 
-def create_store(limit: int = 10) -> TranscriptStore:
-    TEST_TMP_DIR.mkdir(parents=True, exist_ok=True)
-    data_file = TEST_TMP_DIR / f"{uuid4()}.json"
+def create_store(storage_dir: Path, limit: int = 10) -> TranscriptStore:
+    data_file = storage_dir / f"{uuid4()}.json"
     return TranscriptStore(data_file=str(data_file), limit=limit)
 
 
-def teardown_module() -> None:
-    shutil.rmtree(TEST_TMP_DIR, ignore_errors=True)
-
-
-def test_store_adds_new_item_first() -> None:
-    store = create_store()
+def test_store_adds_new_item_first(storage_dir: Path) -> None:
+    store = create_store(storage_dir)
 
     first = create_item("第一条")
     second = create_item("第二条")
@@ -45,8 +52,8 @@ def test_store_adds_new_item_first() -> None:
     assert [item.id for item in items] == [second.id, first.id]
 
 
-def test_store_respects_limit() -> None:
-    store = create_store(limit=3)
+def test_store_respects_limit(storage_dir: Path) -> None:
+    store = create_store(storage_dir, limit=3)
 
     for index in range(5):
         store.add(create_item(f"第{index}条"))
@@ -55,8 +62,8 @@ def test_store_respects_limit() -> None:
     assert len(store.list_recent(limit=2)) == 2
 
 
-def test_store_deletes_item() -> None:
-    store = create_store()
+def test_store_deletes_item(storage_dir: Path) -> None:
+    store = create_store(storage_dir)
     item = create_item("待删除")
     store.add(item)
 
@@ -65,8 +72,8 @@ def test_store_deletes_item() -> None:
     assert store.delete(item.id) is False
 
 
-def test_store_clears_items() -> None:
-    store = create_store()
+def test_store_clears_items(storage_dir: Path) -> None:
+    store = create_store(storage_dir)
     store.add(create_item("第一条"))
     store.add(create_item("第二条"))
 

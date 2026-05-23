@@ -4,6 +4,7 @@ __pycache__/
 *.pyo
 .Python
 .pytest_cache/
+pytest-cache-files-*/
 .ruff_cache/
 .mypy_cache/
 .venv/
@@ -14,6 +15,7 @@ env/
 backend/data/*.json
 backend/data/test-tmp/
 backend/data/test-tmp-hotwords/
+backend/data/test-runtime/
 !backend/data/.gitkeep
 
 # Frontend
