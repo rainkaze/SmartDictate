@@ -41,7 +41,7 @@ created_at  创建时间
 项目没有直接在接口函数里写 SQL，而是通过服务类隔离数据访问：
 
 ```text
-backend/app/services/storage.py   历史记录持久化
+backend/app/services/transcript_store.py   历史记录持久化
 backend/app/services/hotwords.py  自定义热词持久化
 ```
 

@@ -10,8 +10,8 @@ from backend.app.models import (
     TranscriptItem,
 )
 from backend.app.services.hotwords import HotwordDictionary
-from backend.app.services.storage import TranscriptStore
 from backend.app.services.text_processor import TextProcessor
+from backend.app.services.transcript_store import TranscriptStore
 
 settings = get_settings()
 

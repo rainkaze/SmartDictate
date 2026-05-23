@@ -53,10 +53,10 @@ backend/app/config/text_rules.json
 用户自定义热词文件：
 
 ```text
-backend/data/hotwords.json
+backend/data/smartdictate.sqlite3
 ```
 
-`backend/data/hotwords.json` 是本地运行数据，已经被 `.gitignore` 忽略，不会提交到代码仓库。
+`backend/data/smartdictate.sqlite3` 是本地运行数据，已经被 `.gitignore` 忽略，不会提交到代码仓库。
 
 ## 使用建议
 

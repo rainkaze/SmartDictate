@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 from backend.app.models import TranscriptItem, TranscriptMetrics
-from backend.app.services.storage import TranscriptStore
+from backend.app.services.transcript_store import TranscriptStore
 
 TEST_RUNTIME_DIR = Path("backend/data/test-runtime/storage")
 
