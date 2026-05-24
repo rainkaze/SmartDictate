@@ -43,7 +43,7 @@ class XfyunProvider(AsrProvider):
                 label="科大讯飞语音听写 IAT",
                 enabled=enabled,
                 description="短音频流式听写，适合一句话、短录音和快速试音。",
-                supported_sources=[AudioSource.MICROPHONE, AudioSource.FILE, AudioSource.SYSTEM],
+                supported_sources=[AudioSource.MICROPHONE, AudioSource.SYSTEM],
                 supported_languages=[
                     AudioLanguage.ZH_CN,
                     AudioLanguage.ZH_EN,
@@ -79,6 +79,12 @@ class XfyunProvider(AsrProvider):
 
         if self.provider_name == AsrProviderName.XFYUN_LFASR_LARGE:
             return self._transcribe_large_file(audio_file, options)
+
+        if options.source == AudioSource.FILE:
+            raise RuntimeError(
+                "讯飞语音听写 IAT 仅支持麦克风或标签页音频短录制，"
+                "不支持本机文件上传。"
+            )
 
         return self._transcribe_iat(audio_file, options)
 

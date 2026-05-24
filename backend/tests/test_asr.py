@@ -29,6 +29,7 @@ def test_asr_registry_exposes_extensible_provider_list() -> None:
     assert providers[AsrProviderName.BROWSER].enabled is True
     assert providers[AsrProviderName.XFYUN_IAT].enabled is False
     assert providers[AsrProviderName.XFYUN_IAT].supported_modes == [RecognitionMode.SHORT]
+    assert AudioSource.FILE not in providers[AsrProviderName.XFYUN_IAT].supported_sources
     assert providers[AsrProviderName.XFYUN_LFASR_LARGE].supported_modes == [RecognitionMode.LONG]
     assert AudioSource.SYSTEM in providers[AsrProviderName.XFYUN_LFASR_LARGE].supported_sources
     assert providers[AsrProviderName.XFYUN_LFASR_LARGE].enabled is False
@@ -42,7 +43,7 @@ def test_xfyun_provider_requires_credentials() -> None:
             Settings().database_file,
             AsrTranscriptionOptions(
                 provider=AsrProviderName.XFYUN_IAT,
-                source=AudioSource.FILE,
+                source=AudioSource.MICROPHONE,
                 language=AudioLanguage.ZH_EN,
                 mode=RecognitionMode.SHORT,
             ),
@@ -62,6 +63,27 @@ def test_xfyun_provider_configuration_is_isolated_by_interface() -> None:
 
     assert providers[AsrProviderName.XFYUN_IAT].enabled is True
     assert providers[AsrProviderName.XFYUN_LFASR_LARGE].enabled is True
+
+
+def test_iat_rejects_local_file_upload() -> None:
+    registry = AsrProviderRegistry(
+        Settings(
+            xfyun_app_id="app",
+            xfyun_api_key="iat-key",
+            xfyun_api_secret="iat-secret",
+        )
+    )
+
+    with pytest.raises(RuntimeError, match="不支持本机文件上传"):
+        registry.get(AsrProviderName.XFYUN_IAT).transcribe(
+            Settings().database_file,
+            AsrTranscriptionOptions(
+                provider=AsrProviderName.XFYUN_IAT,
+                source=AudioSource.FILE,
+                language=AudioLanguage.ZH_EN,
+                mode=RecognitionMode.SHORT,
+            ),
+        )
 
 
 def test_large_file_signature_is_stable_for_sorted_params() -> None:

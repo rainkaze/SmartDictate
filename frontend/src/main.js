@@ -74,7 +74,7 @@ const providerFallbacks = {
     id: "xfyun_iat",
     label: "语音听写 IAT",
     enabled: false,
-    supported_sources: ["microphone", "file", "system"],
+    supported_sources: ["microphone", "system"],
     supported_languages: ["zh_cn", "zh_en", "en_us", "ja_jp", "dialect"],
     supported_modes: ["short"],
   },
@@ -617,6 +617,7 @@ function providerLabel(provider) {
 function setOptionState(select, supportedValues, labels) {
   for (const option of select.options) {
     const supported = supportedValues.includes(option.value);
+    option.hidden = !supported;
     option.disabled = !supported;
     option.textContent = supported ? labels[option.value] : `${labels[option.value]}（不支持）`;
   }
@@ -652,9 +653,9 @@ function syncRecognitionControls() {
     elements.interimText.textContent =
       "本机识别使用浏览器 Web Speech API，支持前端实时临时结果；输入场景会在“整理文本”时生效。";
   } else if (provider.id === "xfyun_iat") {
-    elements.recordButton.textContent = fileMode ? "上传并识别" : "开始录制";
+    elements.recordButton.textContent = "开始短录制";
     elements.interimText.textContent =
-      "当前 IAT 通过后端 SDK 消费流式结果，前端暂不实时显示；录制停止后返回最终文本。";
+      "IAT 用于麦克风或标签页短音频。当前会在停止录制后返回最终文本；实时流式显示将在后续 WebSocket 接入。";
   } else if (fileMode) {
     elements.recordButton.textContent = "上传并识别";
     elements.interimText.textContent = "录音文件转写会上传完整音频并轮询最终结果，适合长音频。";
