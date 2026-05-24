@@ -9,6 +9,45 @@ export async function checkHealth() {
   }
 }
 
+export async function listAsrProviders() {
+  const response = await fetch(`${API_BASE_URL}/api/asr/providers`);
+
+  if (!response.ok) {
+    throw new Error("语音识别工具接口请求失败");
+  }
+
+  return response.json();
+}
+
+export async function transcribeAudio({ audioBlob, filename, provider, source, language, mode }) {
+  const formData = new FormData();
+  formData.append("audio", audioBlob, filename);
+  formData.append("provider", provider);
+  formData.append("source", source);
+  formData.append("language", language);
+  formData.append("mode", mode);
+
+  const response = await fetch(`${API_BASE_URL}/api/asr/transcribe`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    let message = "语音识别接口请求失败";
+    try {
+      const payload = await response.json();
+      message = payload.detail ?? message;
+    } catch {
+      // Keep the default message when the backend returns a non-JSON error.
+    }
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
+  }
+
+  return response.json();
+}
+
 export async function processTranscript({ rawText, scene }) {
   const response = await fetch(`${API_BASE_URL}/api/transcripts/process`, {
     method: "POST",

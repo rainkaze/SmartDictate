@@ -1,6 +1,21 @@
-from fastapi import FastAPI, HTTPException, Query, Response, status
-from fastapi.middleware.cors import CORSMiddleware
+import shutil
+from pathlib import Path
+from uuid import uuid4
 
+from fastapi import FastAPI, HTTPException, Query, Request, Response, status
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.datastructures import UploadFile
+
+from backend.app.asr.models import (
+    AsrProviderInfo,
+    AsrProviderName,
+    AsrTranscriptionOptions,
+    AsrTranscriptionResult,
+    AudioLanguage,
+    AudioSource,
+    RecognitionMode,
+)
+from backend.app.asr.providers.registry import AsrProviderRegistry
 from backend.app.core.config import get_settings
 from backend.app.core.middleware import RequestContextMiddleware
 from backend.app.models import (
@@ -33,6 +48,7 @@ app.add_middleware(RequestContextMiddleware)
 hotword_dictionary = HotwordDictionary(database_file=settings.database_file)
 processor = TextProcessor(rules_provider=hotword_dictionary.get_text_rules)
 store = TranscriptStore(database_file=settings.database_file)
+asr_registry = AsrProviderRegistry(settings)
 
 
 @app.get("/api/health")
@@ -48,6 +64,63 @@ def health_check() -> dict[str, object]:
             "custom_hotword_count": hotword_dictionary.count_custom(),
         },
     }
+
+
+@app.get("/api/asr/providers", response_model=list[AsrProviderInfo])
+def list_asr_providers() -> list[AsrProviderInfo]:
+    return [provider.info() for provider in asr_registry.list()]
+
+
+@app.post("/api/asr/transcribe", response_model=AsrTranscriptionResult)
+async def transcribe_audio(
+    request: Request,
+) -> AsrTranscriptionResult:
+    try:
+        form = await request.form()
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="语音上传接口需要安装 python-multipart，请执行 pip install -r requirements.txt",
+        ) from exc
+
+    audio = form.get("audio")
+    if not isinstance(audio, UploadFile):
+        raise HTTPException(status_code=400, detail="缺少音频文件")
+
+    provider = AsrProviderName(str(form.get("provider", AsrProviderName.XFYUN_IAT)))
+    source = AudioSource(str(form.get("source", AudioSource.MICROPHONE)))
+    language = AudioLanguage(str(form.get("language", AudioLanguage.ZH_EN)))
+    mode = RecognitionMode(str(form.get("mode", RecognitionMode.SHORT)))
+
+    if provider == AsrProviderName.BROWSER:
+        raise HTTPException(status_code=400, detail="浏览器识别在前端完成，不支持后端上传转写")
+    if provider == AsrProviderName.FUTURE:
+        raise HTTPException(status_code=501, detail="该识别工具尚未实现")
+
+    upload_dir = Path(settings.upload_dir)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    suffix = Path(audio.filename or "audio.wav").suffix or ".wav"
+    audio_file = upload_dir / f"{uuid4()}{suffix.lower()}"
+
+    try:
+        with audio_file.open("wb") as target:
+            shutil.copyfileobj(audio.file, target)
+
+        options = AsrTranscriptionOptions(
+            provider=provider,
+            source=source,
+            language=language,
+            mode=mode,
+        )
+        return asr_registry.get(provider).transcribe(audio_file, options)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"语音识别失败：{exc}") from exc
+    finally:
+        audio.file.close()
+        if audio_file.exists():
+            audio_file.unlink()
 
 
 @app.post("/api/transcripts/process", response_model=TranscriptItem)

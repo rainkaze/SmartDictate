@@ -30,7 +30,8 @@ body {
 
 button,
 select,
-textarea {
+textarea,
+input {
   font: inherit;
 }
 
@@ -129,12 +130,16 @@ h2 {
 }
 
 .control-panel {
-  justify-content: space-between;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: end;
+  justify-content: stretch;
+  gap: 18px;
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfd;
+  overflow: visible;
 }
 
 .recognition-panel {
@@ -173,25 +178,47 @@ h2 {
 .field {
   display: grid;
   gap: 6px;
-  min-width: 180px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .field label {
   font-size: 13px;
 }
 
-select {
+select,
+.file-field input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   height: 40px;
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 0 10px;
   background: #fff;
+  color: var(--text);
+}
+
+select:disabled,
+.file-field input:disabled {
+  color: var(--muted);
+  background: #f7f9fa;
+}
+
+.file-field input {
+  padding: 8px 10px;
+}
+
+.hidden {
+  display: none !important;
 }
 
 .actions {
+  grid-column: 1 / -1;
   gap: 10px;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  padding-top: 2px;
 }
 
 button {
@@ -415,7 +442,10 @@ textarea {
   .control-panel,
   .recognition-panel {
     align-items: stretch;
-    flex-direction: column;
+  }
+
+  .control-panel {
+    grid-template-columns: 1fr;
   }
 
   .recognition-panel p {
