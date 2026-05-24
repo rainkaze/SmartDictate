@@ -30,16 +30,26 @@
 
           <div class="actions">
             <button class="primary-button" id="recordButton" type="button">开始语音输入</button>
+            <button class="secondary-button" id="sampleButton" type="button">填入示例</button>
             <button class="secondary-button" id="processButton" type="button">整理文本</button>
             <button class="secondary-button" id="copyButton" type="button">复制结果</button>
+            <button class="secondary-button" id="clearButton" type="button">清空</button>
           </div>
+        </section>
+
+        <section class="recognition-panel" aria-label="语音识别状态">
+          <div>
+            <span class="eyebrow">识别状态</span>
+            <strong id="recognitionStatus">等待输入</strong>
+          </div>
+          <p id="interimText">临时识别结果会显示在这里。</p>
         </section>
 
         <section class="editor-grid">
           <div class="editor-pane">
             <div class="pane-header">
               <h2>实时转写</h2>
-              <span id="recognitionStatus">等待输入</span>
+              <span>可手动编辑</span>
             </div>
             <textarea id="rawText" placeholder="点击开始语音输入，或直接粘贴一段文本进行整理。"></textarea>
           </div>
@@ -73,12 +83,30 @@
         </section>
       </section>
 
-      <aside class="history-panel">
-        <div class="pane-header">
-          <h2>最近记录</h2>
-          <button class="text-button" id="refreshHistoryButton" type="button">刷新</button>
-        </div>
-        <div id="historyList" class="history-list"></div>
+      <aside class="side-panel">
+        <section class="dictionary-panel">
+          <div class="pane-header">
+            <h2>热词字典</h2>
+            <span id="hotwordStatus">未加载</span>
+          </div>
+          <form class="hotword-form" id="hotwordForm">
+            <input id="hotwordSource" maxlength="80" placeholder="识别词，如 小七" />
+            <input id="hotwordTarget" maxlength="80" placeholder="标准词，如 七牛云助手" />
+            <button class="secondary-button" type="submit">添加</button>
+          </form>
+          <div id="hotwordList" class="hotword-list"></div>
+        </section>
+
+        <section class="history-panel">
+          <div class="pane-header">
+            <h2>最近记录</h2>
+            <div class="history-toolbar">
+              <button class="text-button" id="refreshHistoryButton" type="button">刷新</button>
+              <button class="text-button danger-text" id="clearHistoryButton" type="button">清空</button>
+            </div>
+          </div>
+          <div id="historyList" class="history-list"></div>
+        </section>
       </aside>
     </main>
 

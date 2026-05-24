@@ -6,7 +6,7 @@ from dataclasses import dataclass
 class Settings:
     app_name: str = "SmartDictate"
     app_version: str = "0.1.0"
-    data_file: str = "backend/data/transcripts.json"
+    database_file: str = "backend/data/smartdictate.sqlite3"
     cors_allow_origins: tuple[str, ...] = (
         "http://127.0.0.1:5173",
         "http://localhost:5173",
@@ -18,6 +18,6 @@ def get_settings() -> Settings:
     origins = tuple(origin.strip() for origin in raw_origins.split(",") if origin.strip())
 
     return Settings(
-        data_file=os.getenv("SMART_DICTATE_DATA_FILE", Settings.data_file),
+        database_file=os.getenv("SMART_DICTATE_DATABASE_FILE", Settings.database_file),
         cors_allow_origins=origins or Settings.cors_allow_origins,
     )

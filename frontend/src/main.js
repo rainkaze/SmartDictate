@@ -1,15 +1,34 @@
+import {
+  checkHealth,
+  clearTranscripts,
+  createHotword,
+  deleteHotword,
+  deleteTranscript,
+  listHotwords,
+  listTranscripts,
+  processTranscript,
+} from "./modules/api-client.js";
+import { createSpeechRecognitionController } from "./modules/speech-recognition.js";
+import { escapeHtml } from "./modules/html.js";
 import "./styles.css";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 const elements = {
   apiStatus: document.querySelector("#apiStatus"),
   sceneSelect: document.querySelector("#sceneSelect"),
   recordButton: document.querySelector("#recordButton"),
+  sampleButton: document.querySelector("#sampleButton"),
   processButton: document.querySelector("#processButton"),
   copyButton: document.querySelector("#copyButton"),
+  clearButton: document.querySelector("#clearButton"),
   refreshHistoryButton: document.querySelector("#refreshHistoryButton"),
+  clearHistoryButton: document.querySelector("#clearHistoryButton"),
+  hotwordForm: document.querySelector("#hotwordForm"),
+  hotwordSource: document.querySelector("#hotwordSource"),
+  hotwordTarget: document.querySelector("#hotwordTarget"),
+  hotwordStatus: document.querySelector("#hotwordStatus"),
+  hotwordList: document.querySelector("#hotwordList"),
   recognitionStatus: document.querySelector("#recognitionStatus"),
+  interimText: document.querySelector("#interimText"),
   copyStatus: document.querySelector("#copyStatus"),
   rawText: document.querySelector("#rawText"),
   processedText: document.querySelector("#processedText"),
@@ -20,97 +39,85 @@ const elements = {
   historyList: document.querySelector("#historyList"),
 };
 
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition = null;
-let isRecording = false;
-let startedAt = null;
+const sampleText = "嗯 我想用派森开发七牛语音输入法，然后让小七帮我整理文档";
+
+const state = {
+  startedAt: null,
+  timerId: null,
+  historyItems: [],
+  hotwordItems: [],
+};
+
+const speechController = createSpeechRecognitionController({
+  onStart: () => {
+    state.startedAt = Date.now();
+    startElapsedTimer();
+    elements.recordButton.textContent = "停止语音输入";
+    elements.recordButton.classList.add("recording");
+    elements.recognitionStatus.textContent = "正在聆听";
+    elements.interimText.textContent = "请开始说话。";
+  },
+  onStop: () => {
+    stopElapsedTimer();
+    elements.recordButton.textContent = "开始语音输入";
+    elements.recordButton.classList.remove("recording");
+    elements.recognitionStatus.textContent = "已停止";
+    elements.interimText.textContent = "临时识别结果会显示在这里。";
+  },
+  onFinalText: (text) => {
+    appendRawText(text);
+    updateMetrics();
+  },
+  onInterimText: (text) => {
+    elements.interimText.textContent = text || "正在等待更清晰的语音输入。";
+  },
+  onError: (message) => {
+    stopElapsedTimer();
+    elements.recognitionStatus.textContent = message;
+    elements.recordButton.textContent = "开始语音输入";
+    elements.recordButton.classList.remove("recording");
+  },
+});
 
 function setApiStatus(online) {
   elements.apiStatus.textContent = online ? "后端在线" : "后端离线";
   elements.apiStatus.classList.toggle("offline", !online);
 }
 
-async function checkApi() {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/health`);
-    setApiStatus(response.ok);
-  } catch {
-    setApiStatus(false);
-  }
+async function refreshApiStatus() {
+  setApiStatus(await checkHealth());
 }
 
-function setupRecognition() {
-  if (!SpeechRecognition) {
-    elements.recordButton.disabled = true;
-    elements.recognitionStatus.textContent = "当前浏览器不支持语音识别";
+function appendRawText(text) {
+  const current = elements.rawText.value.trim();
+  elements.rawText.value = current ? `${current} ${text}` : text;
+}
+
+function startElapsedTimer() {
+  stopElapsedTimer();
+  state.timerId = window.setInterval(updateElapsedSeconds, 500);
+  updateElapsedSeconds();
+}
+
+function stopElapsedTimer() {
+  if (state.timerId) {
+    window.clearInterval(state.timerId);
+    state.timerId = null;
+  }
+  updateElapsedSeconds();
+}
+
+function updateElapsedSeconds() {
+  if (!state.startedAt) {
+    elements.elapsedSeconds.textContent = "0s";
     return;
   }
 
-  recognition = new SpeechRecognition();
-  recognition.lang = "zh-CN";
-  recognition.continuous = true;
-  recognition.interimResults = true;
-
-  recognition.onresult = (event) => {
-    let finalText = "";
-    let interimText = "";
-
-    for (let index = event.resultIndex; index < event.results.length; index += 1) {
-      const transcript = event.results[index][0].transcript;
-      if (event.results[index].isFinal) {
-        finalText += transcript;
-      } else {
-        interimText += transcript;
-      }
-    }
-
-    if (finalText) {
-      elements.rawText.value = `${elements.rawText.value}${finalText} `;
-      updateMetrics();
-    }
-
-    elements.recognitionStatus.textContent = interimText ? `识别中：${interimText}` : "正在聆听";
-  };
-
-  recognition.onerror = (event) => {
-    elements.recognitionStatus.textContent = `识别失败：${event.error}`;
-    stopRecording();
-  };
-
-  recognition.onend = () => {
-    if (isRecording) {
-      recognition.start();
-    }
-  };
+  const seconds = Math.max(0, Math.round((Date.now() - state.startedAt) / 1000));
+  elements.elapsedSeconds.textContent = `${seconds}s`;
 }
 
-function startRecording() {
-  if (!recognition) {
-    return;
-  }
-
-  isRecording = true;
-  startedAt = Date.now();
-  elements.recordButton.textContent = "停止语音输入";
-  elements.recordButton.classList.add("recording");
-  elements.recognitionStatus.textContent = "正在聆听";
-  recognition.start();
-}
-
-function stopRecording() {
-  if (!recognition) {
-    return;
-  }
-
-  isRecording = false;
-  elements.recordButton.textContent = "开始语音输入";
-  elements.recordButton.classList.remove("recording");
-  elements.recognitionStatus.textContent = "已停止";
-  recognition.stop();
-  updateMetrics();
-}
-
-async function processText() {
+async function handleProcessText() {
   const rawText = elements.rawText.value.trim();
   if (!rawText) {
     elements.recognitionStatus.textContent = "请先输入文本";
@@ -121,25 +128,14 @@ async function processText() {
   elements.processButton.textContent = "整理中";
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/transcripts/process`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        raw_text: rawText,
-        scene: elements.sceneSelect.value,
-      }),
+    const item = await processTranscript({
+      rawText,
+      scene: elements.sceneSelect.value,
     });
-
-    if (!response.ok) {
-      throw new Error("process failed");
-    }
-
-    const item = await response.json();
     elements.processedText.value = item.processed_text;
     renderMetrics(item.metrics);
     await loadHistory();
+    setApiStatus(true);
   } catch {
     elements.recognitionStatus.textContent = "后端不可用，请先启动 FastAPI 服务";
     setApiStatus(false);
@@ -149,23 +145,33 @@ async function processText() {
   }
 }
 
-async function copyResult() {
-  const text = elements.processedText.value.trim();
-  if (!text) {
-    elements.copyStatus.textContent = "无可复制内容";
-    return;
-  }
+async function handleCopyResult() {
+  await copyText(elements.processedText.value.trim(), elements.copyStatus);
+}
 
-  await navigator.clipboard.writeText(text);
-  elements.copyStatus.textContent = "已复制";
+function handleClearText() {
+  elements.rawText.value = "";
+  elements.processedText.value = "";
+  elements.copyStatus.textContent = "未复制";
+  elements.removedFillers.textContent = "0";
+  state.startedAt = null;
+  stopElapsedTimer();
+  updateMetrics();
+}
+
+function handleFillSample() {
+  elements.rawText.value = sampleText;
+  elements.processedText.value = "";
+  elements.copyStatus.textContent = "未复制";
+  elements.removedFillers.textContent = "0";
+  elements.recognitionStatus.textContent = "已填入示例";
+  elements.interimText.textContent = "可以直接点击“整理文本”验证前后端联动。";
+  updateMetrics();
 }
 
 function updateMetrics() {
   elements.rawLength.textContent = String(elements.rawText.value.length);
   elements.processedLength.textContent = String(elements.processedText.value.length);
-  if (startedAt) {
-    elements.elapsedSeconds.textContent = `${Math.max(0, Math.round((Date.now() - startedAt) / 1000))}s`;
-  }
 }
 
 function renderMetrics(metrics) {
@@ -176,14 +182,12 @@ function renderMetrics(metrics) {
 
 async function loadHistory() {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/transcripts`);
-    if (!response.ok) {
-      throw new Error("history failed");
-    }
-    const items = await response.json();
-    renderHistory(items);
+    state.historyItems = await listTranscripts({ limit: 10 });
+    renderHistory(state.historyItems);
+    setApiStatus(true);
   } catch {
     elements.historyList.innerHTML = '<p class="history-time">启动后端后可查看历史记录。</p>';
+    setApiStatus(false);
   }
 }
 
@@ -193,52 +197,194 @@ function renderHistory(items) {
     return;
   }
 
-  elements.historyList.innerHTML = items
+  elements.historyList.innerHTML = items.map(renderHistoryItem).join("");
+
+  for (const button of elements.historyList.querySelectorAll("button[data-action]")) {
+    button.addEventListener("click", () => {
+      handleHistoryAction(button.dataset.action, button.dataset.historyId);
+    });
+  }
+}
+
+function renderHistoryItem(item) {
+  const time = new Date(item.created_at).toLocaleString();
+  return `
+    <article class="history-item">
+      <p class="history-text">${escapeHtml(item.processed_text)}</p>
+      <div class="history-meta">
+        <span>${time}</span>
+        <span>${sceneLabel(item.scene)}</span>
+        <span>${item.metrics.processed_length} 字</span>
+      </div>
+      <div class="history-actions">
+        <button class="secondary-button" type="button" data-action="fill" data-history-id="${item.id}">填入</button>
+        <button class="secondary-button" type="button" data-action="copy" data-history-id="${item.id}">复制</button>
+        <button class="text-button danger-text" type="button" data-action="delete" data-history-id="${item.id}">删除</button>
+      </div>
+    </article>
+  `;
+}
+
+async function handleHistoryAction(action, id) {
+  const item = state.historyItems.find((entry) => entry.id === id);
+  if (!item) {
+    return;
+  }
+
+  if (action === "fill") {
+    elements.processedText.value = item.processed_text;
+    updateMetrics();
+    return;
+  }
+
+  if (action === "copy") {
+    await copyText(item.processed_text);
+    return;
+  }
+
+  if (action === "delete") {
+    await deleteTranscript(id);
+    await loadHistory();
+  }
+}
+
+async function handleClearHistory() {
+  if (!state.historyItems.length) {
+    return;
+  }
+
+  const confirmed = window.confirm("确定要清空全部历史记录吗？此操作不可撤销。");
+  if (!confirmed) {
+    return;
+  }
+
+  await clearTranscripts();
+  await loadHistory();
+}
+
+async function loadHotwords() {
+  try {
+    state.hotwordItems = await listHotwords();
+    renderHotwords(state.hotwordItems);
+    elements.hotwordStatus.textContent = `${state.hotwordItems.length} 条`;
+    setApiStatus(true);
+  } catch {
+    elements.hotwordStatus.textContent = "加载失败";
+    elements.hotwordList.innerHTML = '<p class="history-time">启动后端后可维护热词。</p>';
+    setApiStatus(false);
+  }
+}
+
+function renderHotwords(items) {
+  if (!items.length) {
+    elements.hotwordList.innerHTML = '<p class="history-time">暂无热词。</p>';
+    return;
+  }
+
+  elements.hotwordList.innerHTML = items
     .map((item) => {
-      const time = new Date(item.created_at).toLocaleString();
+      const badge = item.builtin ? "内置" : "自定义";
+      const action = item.builtin
+        ? '<span class="history-time">不可删除</span>'
+        : `<button class="text-button danger-text" type="button" data-hotword-source="${escapeHtml(item.source)}">删除</button>`;
       return `
-        <article class="history-item">
-          <p class="history-text">${escapeHtml(item.processed_text)}</p>
-          <span class="history-time">${time} · ${item.scene}</span>
-          <button class="secondary-button" type="button" data-history-id="${item.id}">填入结果</button>
+        <article class="hotword-item">
+          <div>
+            <strong>${escapeHtml(item.source)}</strong>
+            <span>→</span>
+            <strong>${escapeHtml(item.target)}</strong>
+          </div>
+          <div class="hotword-meta">
+            <span>${badge}</span>
+            ${action}
+          </div>
         </article>
       `;
     })
     .join("");
 
-  for (const button of elements.historyList.querySelectorAll("button[data-history-id]")) {
-    button.addEventListener("click", () => {
-      const item = items.find((entry) => entry.id === button.dataset.historyId);
-      if (item) {
-        elements.processedText.value = item.processed_text;
-        updateMetrics();
-      }
+  for (const button of elements.hotwordList.querySelectorAll("button[data-hotword-source]")) {
+    button.addEventListener("click", async () => {
+      await deleteHotword(button.dataset.hotwordSource);
+      await loadHotwords();
     });
   }
 }
 
-function escapeHtml(value) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+async function handleAddHotword(event) {
+  event.preventDefault();
+  const source = elements.hotwordSource.value.trim();
+  const target = elements.hotwordTarget.value.trim();
+
+  if (!source || !target) {
+    elements.hotwordStatus.textContent = "请填写完整";
+    return;
+  }
+
+  try {
+    await createHotword({ source, target });
+    elements.hotwordSource.value = "";
+    elements.hotwordTarget.value = "";
+    await loadHotwords();
+    elements.hotwordStatus.textContent = "已添加";
+  } catch (error) {
+    elements.hotwordStatus.textContent = error.message;
+  }
 }
 
-elements.recordButton.addEventListener("click", () => {
-  if (isRecording) {
-    stopRecording();
-  } else {
-    startRecording();
+async function copyText(text, statusElement = null) {
+  if (!text) {
+    if (statusElement) {
+      statusElement.textContent = "无可复制内容";
+    }
+    return;
   }
-});
-elements.processButton.addEventListener("click", processText);
-elements.copyButton.addEventListener("click", copyResult);
-elements.refreshHistoryButton.addEventListener("click", loadHistory);
-elements.rawText.addEventListener("input", updateMetrics);
-elements.processedText.addEventListener("input", updateMetrics);
 
-setupRecognition();
-checkApi();
+  await navigator.clipboard.writeText(text);
+  if (statusElement) {
+    statusElement.textContent = "已复制";
+  }
+}
+
+function sceneLabel(scene) {
+  const labels = {
+    general: "通用输入",
+    meeting: "会议纪要",
+    study: "学习笔记",
+    message: "聊天回复",
+    code_note: "代码注释",
+  };
+  return labels[scene] ?? scene;
+}
+
+function setupEventListeners() {
+  elements.recordButton.addEventListener("click", () => {
+    speechController.toggle();
+  });
+  elements.sampleButton.addEventListener("click", handleFillSample);
+  elements.processButton.addEventListener("click", handleProcessText);
+  elements.copyButton.addEventListener("click", handleCopyResult);
+  elements.clearButton.addEventListener("click", handleClearText);
+  elements.refreshHistoryButton.addEventListener("click", loadHistory);
+  elements.clearHistoryButton.addEventListener("click", handleClearHistory);
+  elements.hotwordForm.addEventListener("submit", handleAddHotword);
+  elements.rawText.addEventListener("input", updateMetrics);
+  elements.processedText.addEventListener("input", updateMetrics);
+}
+
+function setupSpeechSupport() {
+  if (speechController.isSupported()) {
+    elements.recordButton.disabled = false;
+    return;
+  }
+
+  elements.recordButton.disabled = true;
+  elements.recognitionStatus.textContent = "当前浏览器不支持语音识别";
+  elements.interimText.textContent = "建议使用最新版 Chrome 或 Edge，并通过本地开发地址访问页面。";
+}
+
+setupEventListeners();
+setupSpeechSupport();
+refreshApiStatus();
+loadHotwords();
 loadHistory();

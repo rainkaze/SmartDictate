@@ -4,6 +4,7 @@ __pycache__/
 *.pyo
 .Python
 .pytest_cache/
+pytest-cache-files-*/
 .ruff_cache/
 .mypy_cache/
 .venv/
@@ -12,6 +13,9 @@ env/
 
 # Local data
 backend/data/*.json
+backend/data/*.sqlite3
+backend/data/*.sqlite3-*
+backend/data/test-runtime/
 !backend/data/.gitkeep
 
 # Frontend
