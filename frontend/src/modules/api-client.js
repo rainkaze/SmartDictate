@@ -1,4 +1,5 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
+const WS_BASE_URL = API_BASE_URL.replace(/^http/, "ws");
 
 export async function checkHealth() {
   try {
@@ -46,6 +47,11 @@ export async function transcribeAudio({ audioBlob, filename, provider, source, l
   }
 
   return response.json();
+}
+
+export function createAsrStreamUrl({ provider, source, language }) {
+  const query = new URLSearchParams({ provider, source, language });
+  return `${WS_BASE_URL}/api/asr/stream?${query.toString()}`;
 }
 
 export async function processTranscript({ rawText, scene }) {

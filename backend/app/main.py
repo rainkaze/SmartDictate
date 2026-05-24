@@ -1,10 +1,13 @@
+import asyncio
 import shutil
 from pathlib import Path
+from typing import Annotated
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Query, Request, Response, status
+from fastapi import FastAPI, HTTPException, Query, Request, Response, WebSocket, status
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.datastructures import UploadFile
+from starlette.websockets import WebSocketDisconnect
 
 from backend.app.asr.models import (
     AsrProviderInfo,
@@ -16,6 +19,7 @@ from backend.app.asr.models import (
     RecognitionMode,
 )
 from backend.app.asr.providers.registry import AsrProviderRegistry
+from backend.app.asr.streaming import IatStreamingSession, validate_iat_stream_request
 from backend.app.core.config import get_settings
 from backend.app.core.middleware import RequestContextMiddleware
 from backend.app.models import (
@@ -69,6 +73,68 @@ def health_check() -> dict[str, object]:
 @app.get("/api/asr/providers", response_model=list[AsrProviderInfo])
 def list_asr_providers() -> list[AsrProviderInfo]:
     return [provider.info() for provider in asr_registry.list()]
+
+
+@app.websocket("/api/asr/stream")
+async def stream_asr(
+    websocket: WebSocket,
+    provider: Annotated[AsrProviderName, Query()] = AsrProviderName.XFYUN_IAT,
+    source: Annotated[AudioSource, Query()] = AudioSource.MICROPHONE,
+    language: Annotated[AudioLanguage, Query()] = AudioLanguage.ZH_EN,
+) -> None:
+    await websocket.accept()
+
+    if provider != AsrProviderName.XFYUN_IAT:
+        await websocket.send_json({"type": "error", "message": "当前仅支持 IAT 实时流式识别"})
+        await websocket.close(code=1008)
+        return
+
+    try:
+        validate_iat_stream_request(settings, source)
+    except ValueError as exc:
+        await websocket.send_json({"type": "error", "message": str(exc)})
+        await websocket.close(code=1008)
+        return
+
+    session = IatStreamingSession(settings=settings, source=source, language=language)
+    session.start()
+    await websocket.send_json({"type": "ready", "message": "IAT 实时识别已连接"})
+
+    async def receive_audio() -> None:
+        try:
+            while True:
+                message = await websocket.receive()
+                if message["type"] == "websocket.disconnect":
+                    break
+                audio = message.get("bytes")
+                if audio:
+                    session.write_audio(audio)
+                    continue
+                text = message.get("text")
+                if text == "stop":
+                    break
+        except WebSocketDisconnect:
+            pass
+        finally:
+            session.close_audio()
+
+    async def send_events() -> None:
+        try:
+            while True:
+                event = await asyncio.to_thread(session.next_event)
+                if event is None:
+                    continue
+                if event.get("type") == "done":
+                    break
+                await websocket.send_json(event)
+        except WebSocketDisconnect:
+            pass
+
+    await asyncio.gather(receive_audio(), send_events())
+    try:
+        await websocket.close()
+    except RuntimeError:
+        pass
 
 
 @app.post("/api/asr/transcribe", response_model=AsrTranscriptionResult)
