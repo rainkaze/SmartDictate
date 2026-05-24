@@ -93,6 +93,98 @@ export function createWavRecorder() {
   };
 }
 
+export function createPcmStreamRecorder() {
+  let audioContext = null;
+  let sourceNode = null;
+  let processorNode = null;
+  let muteNode = null;
+  let mediaStream = null;
+  let startedAt = null;
+
+  async function start(source, onChunk) {
+    stopTracks();
+    startedAt = Date.now();
+
+    mediaStream =
+      source === "system"
+        ? await navigator.mediaDevices.getDisplayMedia({
+            video: true,
+            audio: {
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+            },
+          })
+        : await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          });
+
+    audioContext = new AudioContext();
+    sourceNode = audioContext.createMediaStreamSource(mediaStream);
+    processorNode = audioContext.createScriptProcessor(4096, 1, 1);
+    muteNode = audioContext.createGain();
+    muteNode.gain.value = 0;
+
+    processorNode.onaudioprocess = (event) => {
+      const samples = new Float32Array(event.inputBuffer.getChannelData(0));
+      const resampled = resample(samples, audioContext.sampleRate, TARGET_SAMPLE_RATE);
+      const pcm = encodePcm16(resampled);
+      if (pcm.byteLength > 0) {
+        onChunk(pcm);
+      }
+    };
+
+    sourceNode.connect(processorNode);
+    processorNode.connect(muteNode);
+    muteNode.connect(audioContext.destination);
+  }
+
+  async function stop() {
+    if (!audioContext || !processorNode) {
+      return null;
+    }
+
+    processorNode.disconnect();
+    sourceNode?.disconnect();
+    muteNode?.disconnect();
+    stopTracks();
+
+    await audioContext.close();
+    audioContext = null;
+    sourceNode = null;
+    processorNode = null;
+    muteNode = null;
+
+    const durationMs = startedAt ? Date.now() - startedAt : 0;
+    startedAt = null;
+    return { durationMs };
+  }
+
+  function isRecording() {
+    return Boolean(audioContext);
+  }
+
+  function stopTracks() {
+    if (!mediaStream) {
+      return;
+    }
+    for (const track of mediaStream.getTracks()) {
+      track.stop();
+    }
+    mediaStream = null;
+  }
+
+  return {
+    start,
+    stop,
+    isRecording,
+  };
+}
+
 function mergeChunks(chunks) {
   const length = chunks.reduce((total, chunk) => total + chunk.length, 0);
   const merged = new Float32Array(length);
@@ -122,6 +214,18 @@ function resample(samples, sourceRate, targetRate) {
   }
 
   return resampled;
+}
+
+function encodePcm16(samples) {
+  const buffer = new ArrayBuffer(samples.length * 2);
+  const view = new DataView(buffer);
+  let offset = 0;
+  for (const sample of samples) {
+    const clamped = Math.max(-1, Math.min(1, sample));
+    view.setInt16(offset, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
+    offset += 2;
+  }
+  return buffer;
 }
 
 function encodeWav(samples, sampleRate) {

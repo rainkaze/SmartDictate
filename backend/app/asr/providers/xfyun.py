@@ -51,7 +51,7 @@ class XfyunProvider(AsrProvider):
                     AudioLanguage.JA_JP,
                     AudioLanguage.DIALECT,
                 ],
-                supported_modes=[RecognitionMode.SHORT],
+                supported_modes=[RecognitionMode.REALTIME],
                 reason=None if enabled else "缺少 XFYUN_APP_ID、XFYUN_API_KEY 或 XFYUN_API_SECRET",
             )
 
@@ -277,10 +277,13 @@ class _XfyunLargeFileClient:
 class _IatTranscriptAccumulator:
     def __init__(self) -> None:
         self._parts: list[str] = []
+        self._sn_parts: dict[int, str] = {}
         self._fallback_text = ""
 
     @property
     def text(self) -> str:
+        if self._sn_parts:
+            return "".join(self._sn_parts[index] for index in sorted(self._sn_parts))
         if self._parts:
             return "".join(self._parts)
         return self._fallback_text
@@ -290,6 +293,12 @@ class _IatTranscriptAccumulator:
         if isinstance(result, dict):
             pgs = result.get("pgs")
             rg = result.get("rg")
+            sn = _extract_sn(result)
+            if sn is not None:
+                if pgs == "rpl" and isinstance(rg, list) and len(rg) == 2:
+                    self._replace_sn_range(rg)
+                self._sn_parts[sn] = text
+                return
             if pgs == "rpl" and isinstance(rg, list) and len(rg) == 2:
                 self._replace_range(rg, text)
                 return
@@ -328,6 +337,16 @@ class _IatTranscriptAccumulator:
             return
 
         self._parts[start:end] = [text]
+
+    def _replace_sn_range(self, rg: list[Any]) -> None:
+        try:
+            start = int(rg[0])
+            end = int(rg[1])
+        except (TypeError, ValueError):
+            return
+
+        for index in range(start, end + 1):
+            self._sn_parts.pop(index, None)
 
 
 def _extract_result(chunk: Any) -> Any:
@@ -369,6 +388,13 @@ def _extract_text(chunk: Any) -> str:
             return value
 
     return ""
+
+
+def _extract_sn(result: dict[str, Any]) -> int | None:
+    try:
+        return int(result["sn"])
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
 def _merge_incremental_text(current: str, incoming: str) -> str:

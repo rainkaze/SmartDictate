@@ -2,6 +2,7 @@ import {
   checkHealth,
   clearTranscripts,
   createHotword,
+  createAsrStreamUrl,
   deleteHotword,
   deleteTranscript,
   listAsrProviders,
@@ -10,7 +11,7 @@ import {
   processTranscript,
   transcribeAudio,
 } from "./modules/api-client.js";
-import { createWavRecorder } from "./modules/audio-recorder.js";
+import { createPcmStreamRecorder, createWavRecorder } from "./modules/audio-recorder.js";
 import { escapeHtml } from "./modules/html.js";
 import { createSpeechRecognitionController } from "./modules/speech-recognition.js";
 import "./styles.css";
@@ -59,6 +60,7 @@ const state = {
   historyItems: [],
   hotwordItems: [],
   asrProviders: [],
+  streamSocket: null,
 };
 
 const providerFallbacks = {
@@ -76,7 +78,7 @@ const providerFallbacks = {
     enabled: false,
     supported_sources: ["microphone", "system"],
     supported_languages: ["zh_cn", "zh_en", "en_us", "ja_jp", "dialect"],
-    supported_modes: ["short"],
+    supported_modes: ["realtime"],
   },
   xfyun_lfasr_large: {
     id: "xfyun_lfasr_large",
@@ -125,6 +127,7 @@ const modeLabels = {
 };
 
 const wavRecorder = createWavRecorder();
+const pcmStreamRecorder = createPcmStreamRecorder();
 
 const speechController = createSpeechRecognitionController({
   onStart: () => {
@@ -274,6 +277,14 @@ async function handleRecognition() {
     speechController.toggle(elements.languageSelect.value);
     return;
   }
+  if (provider === "xfyun_iat") {
+    if (pcmStreamRecorder.isRecording()) {
+      await stopIatStreamRecognition();
+    } else {
+      await startIatStreamRecognition(source);
+    }
+    return;
+  }
 
   if (source === "file") {
     await transcribeSelectedFile();
@@ -286,6 +297,113 @@ async function handleRecognition() {
   }
 
   await startApiRecording(source);
+}
+
+async function startIatStreamRecognition(source) {
+  const url = createAsrStreamUrl({
+    provider: elements.providerSelect.value,
+    source,
+    language: elements.languageSelect.value,
+  });
+
+  elements.recordButton.disabled = true;
+  elements.recognitionStatus.textContent = "正在连接 IAT 实时识别";
+  elements.interimText.textContent = "将实时采集音频并显示识别中的文本。";
+
+  const socket = await openStreamSocket(url);
+  state.streamSocket = socket;
+  bindStreamSocket(socket);
+
+  try {
+    state.startedAt = Date.now();
+    startElapsedTimer();
+    await pcmStreamRecorder.start(source, (chunk) => {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(chunk);
+      }
+    });
+    elements.processedText.value = "";
+    elements.copyStatus.textContent = "未复制";
+    elements.removedFillers.textContent = "0";
+    elements.recordButton.textContent = "停止实时识别";
+    elements.recordButton.classList.add("recording");
+    elements.recognitionStatus.textContent =
+      source === "system" ? "正在实时转写标签页音频" : "正在实时转写麦克风";
+  } catch (error) {
+    socket.close();
+    state.streamSocket = null;
+    stopElapsedTimer();
+    elements.recordButton.classList.remove("recording");
+    elements.recognitionStatus.textContent = error.message;
+  } finally {
+    elements.recordButton.disabled = false;
+  }
+}
+
+async function stopIatStreamRecognition() {
+  elements.recordButton.disabled = true;
+  elements.recognitionStatus.textContent = "正在收尾识别";
+
+  await pcmStreamRecorder.stop();
+  if (state.streamSocket?.readyState === WebSocket.OPEN) {
+    state.streamSocket.send("stop");
+  }
+
+  elements.recordButton.classList.remove("recording");
+  elements.recordButton.textContent = "开始实时识别";
+  elements.recordButton.disabled = false;
+}
+
+function openStreamSocket(url) {
+  return new Promise((resolve, reject) => {
+    const socket = new WebSocket(url);
+    socket.binaryType = "arraybuffer";
+    socket.addEventListener("open", () => resolve(socket), { once: true });
+    socket.addEventListener(
+      "error",
+      () => reject(new Error("IAT 实时识别连接失败，请确认后端服务和讯飞配置。")),
+      { once: true },
+    );
+  });
+}
+
+function bindStreamSocket(socket) {
+  socket.addEventListener("message", (event) => {
+    const payload = JSON.parse(event.data);
+    if (payload.type === "ready") {
+      elements.interimText.textContent = payload.message;
+      return;
+    }
+    if (payload.type === "partial") {
+      elements.rawText.value = payload.text;
+      elements.recognitionStatus.textContent = "实时识别中";
+      elements.interimText.textContent = payload.segment || "正在接收识别片段";
+      updateMetrics();
+      return;
+    }
+    if (payload.type === "final") {
+      elements.rawText.value = payload.text;
+      elements.recognitionStatus.textContent = payload.text ? "实时识别完成" : "未识别到文本";
+      elements.interimText.textContent = `IAT 实时识别完成，耗时 ${payload.duration_ms}ms`;
+      updateMetrics();
+      return;
+    }
+    if (payload.type === "error") {
+      elements.recognitionStatus.textContent = payload.message;
+      elements.interimText.textContent = "实时识别已中断，请检查 API 凭据、网络或音频权限。";
+      socket.close();
+    }
+  });
+
+  socket.addEventListener("close", async () => {
+    state.streamSocket = null;
+    if (pcmStreamRecorder.isRecording()) {
+      await pcmStreamRecorder.stop();
+    }
+    stopElapsedTimer();
+    elements.recordButton.classList.remove("recording");
+    syncRecognitionControls();
+  });
 }
 
 async function startApiRecording(source) {
@@ -653,9 +771,11 @@ function syncRecognitionControls() {
     elements.interimText.textContent =
       "本机识别使用浏览器 Web Speech API，支持前端实时临时结果；输入场景会在“整理文本”时生效。";
   } else if (provider.id === "xfyun_iat") {
-    elements.recordButton.textContent = "开始短录制";
+    elements.recordButton.textContent = pcmStreamRecorder.isRecording()
+      ? "停止实时识别"
+      : "开始实时识别";
     elements.interimText.textContent =
-      "IAT 用于麦克风或标签页短音频。当前会在停止录制后返回最终文本；实时流式显示将在后续 WebSocket 接入。";
+      "IAT 用于麦克风或标签页短音频，会通过 WebSocket 实时显示识别中的文本。";
   } else if (fileMode) {
     elements.recordButton.textContent = "上传并识别";
     elements.interimText.textContent = "录音文件转写会上传完整音频并轮询最终结果，适合长音频。";

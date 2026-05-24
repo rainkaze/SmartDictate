@@ -12,6 +12,7 @@ from backend.app.asr.providers.xfyun import (
     _large_file_signature,
     _merge_incremental_text,
 )
+from backend.app.asr.streaming import QueueAudioStream, validate_iat_stream_request
 from backend.app.core.config import Settings
 
 
@@ -28,7 +29,7 @@ def test_asr_registry_exposes_extensible_provider_list() -> None:
     }
     assert providers[AsrProviderName.BROWSER].enabled is True
     assert providers[AsrProviderName.XFYUN_IAT].enabled is False
-    assert providers[AsrProviderName.XFYUN_IAT].supported_modes == [RecognitionMode.SHORT]
+    assert providers[AsrProviderName.XFYUN_IAT].supported_modes == [RecognitionMode.REALTIME]
     assert AudioSource.FILE not in providers[AsrProviderName.XFYUN_IAT].supported_sources
     assert providers[AsrProviderName.XFYUN_LFASR_LARGE].supported_modes == [RecognitionMode.LONG]
     assert AudioSource.SYSTEM in providers[AsrProviderName.XFYUN_LFASR_LARGE].supported_sources
@@ -86,6 +87,29 @@ def test_iat_rejects_local_file_upload() -> None:
         )
 
 
+def test_iat_stream_request_rejects_local_file_source() -> None:
+    with pytest.raises(ValueError, match="不支持本机文件上传"):
+        validate_iat_stream_request(
+            Settings(
+                xfyun_app_id="app",
+                xfyun_api_key="iat-key",
+                xfyun_api_secret="iat-secret",
+            ),
+            AudioSource.FILE,
+        )
+
+
+def test_queue_audio_stream_reads_buffered_chunks() -> None:
+    stream = QueueAudioStream()
+    stream.write(b"abcdef")
+    stream.close()
+
+    assert stream.read(2) == b"ab"
+    assert stream.read(3) == b"cde"
+    assert stream.read(3) == b"f"
+    assert stream.read(3) == b""
+
+
 def test_large_file_signature_is_stable_for_sorted_params() -> None:
     signature = _large_file_signature(
         {
@@ -133,3 +157,23 @@ def test_iat_accumulator_replaces_progressive_apd_fragments() -> None:
     accumulator.update({"result": {"pgs": "apd"}}, "老当益壮")
 
     assert accumulator.text == "说来君子见已达人之命老当益壮"
+
+
+def test_iat_accumulator_uses_sentence_numbers_for_streaming_updates() -> None:
+    accumulator = _IatTranscriptAccumulator()
+
+    accumulator.update({"result": {"sn": 1, "pgs": "apd"}}, "下临无地")
+    accumulator.update({"result": {"sn": 1, "pgs": "apd"}}, "下临无地可行")
+    accumulator.update({"result": {"sn": 2, "pgs": "apd"}}, "穷岛屿之萦回")
+
+    assert accumulator.text == "下临无地可行穷岛屿之萦回"
+
+
+def test_iat_accumulator_replaces_numbered_sentence_range() -> None:
+    accumulator = _IatTranscriptAccumulator()
+
+    accumulator.update({"result": {"sn": 1, "pgs": "apd"}}, "下临无地")
+    accumulator.update({"result": {"sn": 2, "pgs": "apd"}}, "可行可行")
+    accumulator.update({"result": {"sn": 3, "pgs": "rpl", "rg": [2, 2]}}, "可极娱游")
+
+    assert accumulator.text == "下临无地可极娱游"
