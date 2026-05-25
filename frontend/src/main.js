@@ -7,6 +7,7 @@ import {
   deleteHotword,
   deleteTranscript,
   deleteTranscriptAudio,
+  deleteTranscriptCategory,
   listAsrProviders,
   listHotwords,
   listTranscriptCategories,
@@ -47,6 +48,8 @@ const elements = {
   historySearchInput: document.querySelector("#historySearchInput"),
   historyCategoryFilter: document.querySelector("#historyCategoryFilter"),
   historyFavoriteFilter: document.querySelector("#historyFavoriteFilter"),
+  categorySummary: document.querySelector("#categorySummary"),
+  categoryList: document.querySelector("#categoryList"),
   categoryForm: document.querySelector("#categoryForm"),
   categoryNameInput: document.querySelector("#categoryNameInput"),
   categoryColorInput: document.querySelector("#categoryColorInput"),
@@ -75,6 +78,8 @@ const elements = {
   sessionDetailStatus: document.querySelector("#sessionDetailStatus"),
   sessionDetailEmpty: document.querySelector("#sessionDetailEmpty"),
   sessionDetailForm: document.querySelector("#sessionDetailForm"),
+  sessionCreatedTime: document.querySelector("#sessionCreatedTime"),
+  sessionUpdatedTime: document.querySelector("#sessionUpdatedTime"),
   sessionTitleInput: document.querySelector("#sessionTitleInput"),
   sessionCategorySelect: document.querySelector("#sessionCategorySelect"),
   sessionSceneSelect: document.querySelector("#sessionSceneSelect"),
@@ -914,6 +919,35 @@ function renderCategoryFilters() {
   if (selectedSession && !elements.sessionDetailForm.classList.contains("hidden")) {
     renderSessionCategoryOptions(selectedSession.category_id);
   }
+  renderCategoryManager();
+}
+
+function renderCategoryManager() {
+  elements.categorySummary.textContent = `${state.historyCategories.length} 项`;
+  if (!state.historyCategories.length) {
+    elements.categoryList.innerHTML = '<p class="history-empty">暂无分类。</p>';
+    return;
+  }
+
+  elements.categoryList.innerHTML = state.historyCategories
+    .map((category) => {
+      const action = category.builtin
+        ? '<span class="history-time">内置</span>'
+        : `<button class="text-button danger-text" type="button" data-category-delete="${escapeHtml(category.id)}">删除</button>`;
+      return `
+        <div class="category-manager-item">
+          <span class="category-chip" style="--category-color: ${escapeHtml(category.color)}">
+            ${escapeHtml(category.name)}
+          </span>
+          ${action}
+        </div>
+      `;
+    })
+    .join("");
+
+  for (const button of elements.categoryList.querySelectorAll("button[data-category-delete]")) {
+    button.addEventListener("click", () => handleDeleteCategory(button.dataset.categoryDelete));
+  }
 }
 
 function renderHistory(items) {
@@ -934,12 +968,15 @@ function renderHistory(items) {
 }
 
 function renderHistoryItem(item) {
-  const time = new Date(item.updated_at ?? item.created_at).toLocaleString();
+  const time = formatDateTime(item.created_at);
   const category = getCategory(item.category_id);
   const categoryName = category?.name ?? "未分类";
   const categoryColor = category?.color ?? "#94a3b8";
   const favoriteClass = item.favorite ? " is-favorite" : "";
   const favoriteLabel = item.favorite ? "取消收藏" : "收藏";
+  const title = item.title ?? "未命名会话";
+  const preview = item.processed_text || item.raw_text || title;
+  const shouldShowPreview = !isRedundantPreview(title, preview);
   return `
     <article class="history-item${favoriteClass}">
       <div class="history-title-row">
@@ -952,19 +989,17 @@ function renderHistoryItem(item) {
           data-history-id="${item.id}"
         >${item.favorite ? "★" : "☆"}</button>
         <div>
-          <strong>${escapeHtml(item.title ?? "未命名会话")}</strong>
+          <strong>${escapeHtml(title)}</strong>
           <div class="history-meta">
             <span class="category-chip" style="--category-color: ${categoryColor}">${escapeHtml(categoryName)}</span>
             <span>${sceneLabel(item.scene)}</span>
             <span>${time}</span>
-            <span>${item.metrics.processed_length} 字</span>
           </div>
         </div>
       </div>
-      <p class="history-text">${escapeHtml(item.processed_text)}</p>
+      ${shouldShowPreview ? `<p class="history-text">${escapeHtml(preview)}</p>` : ""}
       <div class="history-meta">
         <span>原文 ${item.metrics.raw_length} 字</span>
-        <span>清理 ${item.metrics.removed_fillers} 处</span>
         <span>${item.audio ? "有音频" : "无音频"}</span>
       </div>
       <div class="history-actions">
@@ -1001,6 +1036,10 @@ function openSessionDetail(item) {
   elements.sessionDetailForm.classList.remove("hidden");
   elements.sessionDetailHeading.textContent = "会话详情";
   elements.sessionDetailStatus.textContent = item.favorite ? "已收藏" : "可编辑";
+  elements.sessionCreatedTime.textContent = `记录时间 ${formatDateTime(item.created_at)}`;
+  elements.sessionUpdatedTime.textContent = hasUpdatedAfterCreate(item)
+    ? `上次编辑 ${formatDateTime(item.updated_at)}`
+    : "上次编辑 未修改";
   elements.sessionTitleInput.value = item.title ?? "";
   elements.sessionSceneSelect.value = item.scene;
   elements.sessionFavoriteCheckbox.checked = Boolean(item.favorite);
@@ -1140,8 +1179,11 @@ async function handleHistoryAction(action, id) {
   }
 
   if (action === "favorite") {
-    await updateTranscript(id, { favorite: !item.favorite });
+    const updated = await updateTranscript(id, { favorite: !item.favorite });
     await loadHistory();
+    if (state.selectedSessionId === id) {
+      openSessionDetail(updated);
+    }
     return;
   }
 
@@ -1204,6 +1246,33 @@ async function handleAddCategory(event) {
     });
     elements.categoryNameInput.value = "";
     await loadSessionLibrary();
+  } catch (error) {
+    window.alert(error.message);
+  }
+}
+
+async function handleDeleteCategory(categoryId) {
+  const category = state.historyCategories.find((item) => item.id === categoryId);
+  if (!category || category.builtin) {
+    return;
+  }
+
+  const confirmed = window.confirm(`确定删除分类“${category.name}”吗？该分类下的会话会变为未分类。`);
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    await deleteTranscriptCategory(categoryId);
+    if (state.historyFilters.categoryId === categoryId) {
+      state.historyFilters.categoryId = "";
+      elements.historyCategoryFilter.value = "";
+    }
+    await loadSessionLibrary();
+    const selectedSession = getSelectedSession();
+    if (selectedSession && !elements.sessionDetailForm.classList.contains("hidden")) {
+      openSessionDetail(selectedSession);
+    }
   } catch (error) {
     window.alert(error.message);
   }
@@ -1337,6 +1406,36 @@ function formatDuration(durationMs) {
 
 function providerLabel(provider) {
   return getProviderInfo(provider).label;
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return "-";
+  }
+  return new Date(value).toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function hasUpdatedAfterCreate(item) {
+  if (!item?.created_at || !item?.updated_at) {
+    return false;
+  }
+  return Math.abs(new Date(item.updated_at).getTime() - new Date(item.created_at).getTime()) > 1000;
+}
+
+function isRedundantPreview(title, preview) {
+  const normalizedTitle = normalizePreviewText(title);
+  const normalizedPreview = normalizePreviewText(preview);
+  return !normalizedPreview || normalizedPreview === normalizedTitle || normalizedPreview.startsWith(normalizedTitle);
+}
+
+function normalizePreviewText(value) {
+  return String(value ?? "").replace(/\s+/g, "");
 }
 
 function isRealtimeProvider(providerId) {

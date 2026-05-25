@@ -2,12 +2,12 @@ import asyncio
 import shutil
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import quote
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response, WebSocket, status
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.datastructures import UploadFile
-from starlette.responses import FileResponse
 from starlette.websockets import WebSocketDisconnect
 
 from backend.app.asr.models import (
@@ -355,7 +355,7 @@ async def upload_transcript_audio(
 
 
 @app.get("/api/transcripts/{transcript_id}/audio")
-def get_transcript_audio(transcript_id: str) -> FileResponse:
+def get_transcript_audio(transcript_id: str, request: Request) -> Response:
     item = store.get(transcript_id)
     audio_path = store.get_audio_path(transcript_id)
     if item is None or not item.audio or not audio_path:
@@ -366,8 +366,9 @@ def get_transcript_audio(transcript_id: str) -> FileResponse:
         store.clear_audio(transcript_id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="音频文件已丢失")
 
-    return FileResponse(
-        audio_file,
+    return _audio_file_response(
+        request=request,
+        audio_file=audio_file,
         media_type=item.audio.content_type,
         filename=item.audio.filename,
     )
@@ -440,6 +441,81 @@ def _parse_optional_int(value: object) -> int | None:
         return int(str(value))
     except ValueError:
         return None
+
+
+def _audio_file_response(
+    request: Request,
+    audio_file: Path,
+    media_type: str,
+    filename: str,
+) -> Response:
+    file_size = audio_file.stat().st_size
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "no-store",
+        "Content-Disposition": _inline_content_disposition(filename),
+    }
+    range_header = request.headers.get("range")
+    if range_header:
+        byte_range = _parse_range_header(range_header, file_size)
+        if byte_range is None:
+            raise HTTPException(
+                status_code=status.HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE,
+                detail="请求的音频范围无效",
+                headers={"Content-Range": f"bytes */{file_size}"},
+            )
+
+        start, end = byte_range
+        content_length = end - start + 1
+        with audio_file.open("rb") as source:
+            source.seek(start)
+            content = source.read(content_length)
+        headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+        headers["Content-Length"] = str(content_length)
+        return Response(
+            content=content,
+            status_code=status.HTTP_206_PARTIAL_CONTENT,
+            media_type=media_type,
+            headers=headers,
+        )
+
+    content = audio_file.read_bytes()
+    headers["Content-Length"] = str(file_size)
+    return Response(content=content, media_type=media_type, headers=headers)
+
+
+def _parse_range_header(range_header: str, file_size: int) -> tuple[int, int] | None:
+    if file_size <= 0 or not range_header.startswith("bytes="):
+        return None
+
+    byte_range = range_header.removeprefix("bytes=").strip()
+    if "," in byte_range or "-" not in byte_range:
+        return None
+
+    start_text, end_text = byte_range.split("-", 1)
+    try:
+        if start_text == "":
+            suffix_length = int(end_text)
+            if suffix_length <= 0:
+                return None
+            return max(file_size - suffix_length, 0), file_size - 1
+
+        start = int(start_text)
+        end = int(end_text) if end_text else file_size - 1
+    except ValueError:
+        return None
+
+    if start < 0 or start >= file_size or end < start:
+        return None
+    return start, min(end, file_size - 1)
+
+
+def _inline_content_disposition(filename: str) -> str:
+    fallback = "".join(
+        char if char.isascii() and char not in {'"', "\\"} else "_"
+        for char in filename
+    )
+    return f"inline; filename=\"{fallback}\"; filename*=UTF-8''{quote(filename)}"
 
 
 def _delete_file_if_exists(path: Path) -> None:
