@@ -16,6 +16,8 @@ backend/data/*.json
 backend/data/*.sqlite3
 backend/data/*.sqlite3-*
 backend/data/test-runtime/
+backend/data/session-audio/
+backend/data/uploads/
 !backend/data/.gitkeep
 
 # Frontend
@@ -37,3 +39,8 @@ Thumbs.db
 # Media generated during demos
 demo/
 recordings/
+
+# Third-party SDK source drops are used only as temporary reference material.
+backend/websdk-python/
+backend/speech-demo/
+backend/speech_realtime_api/

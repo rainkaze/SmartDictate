@@ -7,9 +7,18 @@ const errorMessages = {
   network: "语音识别网络异常，请稍后重试",
 };
 
+const browserLanguageMap = {
+  zh_cn: "zh-CN",
+  en_us: "en-US",
+  ja_jp: "ja-JP",
+  dialect: "zh-CN",
+  other: "zh-CN",
+};
+
 export function createSpeechRecognitionController(callbacks) {
   let recognition = null;
   let recording = false;
+  let language = "zh_cn";
 
   function isSupported() {
     return Boolean(SpeechRecognition);
@@ -21,11 +30,12 @@ export function createSpeechRecognitionController(callbacks) {
     }
 
     if (recognition) {
+      recognition.lang = browserLanguageMap[language] ?? "zh-CN";
       return recognition;
     }
 
     recognition = new SpeechRecognition();
-    recognition.lang = "zh-CN";
+    recognition.lang = browserLanguageMap[language] ?? "zh-CN";
     recognition.continuous = true;
     recognition.interimResults = true;
 
@@ -64,6 +74,13 @@ export function createSpeechRecognitionController(callbacks) {
     return recognition;
   }
 
+  function setLanguage(nextLanguage) {
+    language = nextLanguage;
+    if (recognition) {
+      recognition.lang = browserLanguageMap[language] ?? "zh-CN";
+    }
+  }
+
   function start() {
     const currentRecognition = ensureRecognition();
     if (!currentRecognition || recording) {
@@ -84,7 +101,8 @@ export function createSpeechRecognitionController(callbacks) {
     recognition.stop();
   }
 
-  function toggle() {
+  function toggle(nextLanguage = language) {
+    setLanguage(nextLanguage);
     if (recording) {
       stop();
     } else {
@@ -94,6 +112,7 @@ export function createSpeechRecognitionController(callbacks) {
 
   return {
     isSupported,
+    setLanguage,
     start,
     stop,
     toggle,

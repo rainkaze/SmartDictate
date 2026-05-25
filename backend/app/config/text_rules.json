@@ -12,23 +12,13 @@
   ],
   "hotwords": {
     "七牛": "七牛云",
-    "七牛云云": "七牛云",
     "fast api": "FastAPI",
     "法斯特 api": "FastAPI",
     "派森": "Python",
     "威特": "Vite",
     "github": "GitHub",
     "gitee": "Gitee",
-    "read me": "README",
-    "麦克风权限": "麦克风权限",
-    "语音输入": "语音输入",
-    "实训营": "实训营"
+    "read me": "README"
   },
-  "scene_prefixes": {
-    "general": "",
-    "meeting": "会议纪要：",
-    "study": "学习笔记：",
-    "message": "",
-    "code_note": "代码说明："
-  }
+  "scene_prefixes": {}
 }

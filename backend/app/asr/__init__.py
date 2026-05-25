@@ -1,0 +1,2 @@
+"""Speech recognition integration layer."""
+
