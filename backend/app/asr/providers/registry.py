@@ -1,4 +1,5 @@
 from backend.app.asr.models import AsrProviderName
+from backend.app.asr.providers.baidu import BaiduProvider
 from backend.app.asr.providers.base import AsrProvider
 from backend.app.asr.providers.mock import BrowserProvider, FutureProvider
 from backend.app.asr.providers.xfyun import XfyunProvider
@@ -13,6 +14,11 @@ class AsrProviderRegistry:
             AsrProviderName.XFYUN_LFASR_LARGE: XfyunProvider(
                 settings,
                 AsrProviderName.XFYUN_LFASR_LARGE,
+            ),
+            AsrProviderName.BAIDU_SHORT: BaiduProvider(settings, AsrProviderName.BAIDU_SHORT),
+            AsrProviderName.BAIDU_REALTIME: BaiduProvider(
+                settings,
+                AsrProviderName.BAIDU_REALTIME,
             ),
             AsrProviderName.FUTURE: FutureProvider(),
         }

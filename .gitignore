@@ -42,3 +42,5 @@ recordings/
 
 # Third-party SDK source drops are used only as temporary reference material.
 backend/websdk-python/
+backend/speech-demo/
+backend/speech_realtime_api/

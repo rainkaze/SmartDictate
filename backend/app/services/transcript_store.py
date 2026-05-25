@@ -118,7 +118,7 @@ class TranscriptStore:
                     audio_duration_ms, metrics_json, created_at, updated_at
                 FROM transcripts
                 {where_sql}
-                ORDER BY favorite DESC, updated_at DESC, created_at DESC
+                ORDER BY created_at DESC, id DESC
                 LIMIT ?
                 """,
                 params,

@@ -69,6 +69,18 @@ def test_store_updates_favorite_title_and_category() -> None:
     assert updated.updated_at >= updated.created_at
 
 
+def test_store_keeps_created_time_order_after_favorite_updates() -> None:
+    store = create_store()
+    first = create_item("第一条")
+    second = create_item("第二条")
+    store.add(first)
+    store.add(second)
+
+    store.update_metadata(first.id, {"favorite": True})
+
+    assert [item.id for item in store.list_recent()] == [second.id, first.id]
+
+
 def test_store_updates_session_text_and_metrics() -> None:
     store = create_store()
     item = create_item("原始文本")

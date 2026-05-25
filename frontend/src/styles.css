@@ -507,7 +507,10 @@ textarea {
 .history-list {
   display: grid;
   flex: 1 1 auto;
-  gap: 12px;
+  gap: 8px;
+  align-content: start;
+  align-items: start;
+  grid-auto-rows: max-content;
   margin-top: 14px;
   min-height: 0;
   overflow: auto;
@@ -559,6 +562,69 @@ textarea {
 
 .history-controls input {
   padding: 0 10px;
+}
+
+.category-manager {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.category-manager summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 38px;
+  padding: 0 12px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  list-style: none;
+}
+
+.category-manager summary::-webkit-details-marker {
+  display: none;
+}
+
+.category-manager summary::after {
+  color: var(--muted);
+  content: "展开";
+}
+
+.category-manager[open] summary {
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+}
+
+.category-manager[open] summary::after {
+  content: "收起";
+}
+
+.category-list {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px 0;
+}
+
+.category-manager-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 30px;
+}
+
+.category-manager-item .category-chip {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.category-manager .category-form {
+  margin-top: 0;
+  padding: 10px 12px 12px;
 }
 
 .checkbox-field {
@@ -655,10 +721,10 @@ textarea {
 
 .history-item {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 12px;
+  padding: 9px 10px;
   background: #fbfcfd;
 }
 
@@ -669,8 +735,9 @@ textarea {
 
 .history-item button {
   justify-self: start;
-  min-height: 32px;
-  padding: 0 10px;
+  min-height: 28px;
+  padding: 0 8px;
+  font-size: 13px;
 }
 
 .history-title-row {
@@ -681,9 +748,12 @@ textarea {
 }
 
 .history-title-row strong {
-  display: block;
-  line-height: 1.45;
+  display: -webkit-box;
+  line-height: 1.35;
   overflow-wrap: anywhere;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .favorite-button {
@@ -705,11 +775,12 @@ textarea {
 .history-text {
   margin: 0;
   color: var(--text);
-  line-height: 1.6;
+  font-size: 14px;
+  line-height: 1.55;
   display: -webkit-box;
   overflow: hidden;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 2;
 }
 
 .history-meta {
@@ -735,13 +806,21 @@ textarea {
 
 .session-detail-form {
   display: grid;
-  gap: 16px;
+  gap: 14px;
   margin-top: 14px;
+}
+
+.session-time-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .detail-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(180px, 0.7fr) minmax(180px, 0.7fr) auto;
+  grid-template-columns: minmax(0, 1.1fr) minmax(160px, 0.65fr) minmax(160px, 0.65fr) auto;
   align-items: end;
   gap: 12px;
 }
@@ -808,7 +887,7 @@ textarea {
 }
 
 .history-actions {
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 

@@ -7,6 +7,7 @@ import {
   deleteHotword,
   deleteTranscript,
   deleteTranscriptAudio,
+  deleteTranscriptCategory,
   listAsrProviders,
   listHotwords,
   listTranscriptCategories,
@@ -47,6 +48,8 @@ const elements = {
   historySearchInput: document.querySelector("#historySearchInput"),
   historyCategoryFilter: document.querySelector("#historyCategoryFilter"),
   historyFavoriteFilter: document.querySelector("#historyFavoriteFilter"),
+  categorySummary: document.querySelector("#categorySummary"),
+  categoryList: document.querySelector("#categoryList"),
   categoryForm: document.querySelector("#categoryForm"),
   categoryNameInput: document.querySelector("#categoryNameInput"),
   categoryColorInput: document.querySelector("#categoryColorInput"),
@@ -75,6 +78,8 @@ const elements = {
   sessionDetailStatus: document.querySelector("#sessionDetailStatus"),
   sessionDetailEmpty: document.querySelector("#sessionDetailEmpty"),
   sessionDetailForm: document.querySelector("#sessionDetailForm"),
+  sessionCreatedTime: document.querySelector("#sessionCreatedTime"),
+  sessionUpdatedTime: document.querySelector("#sessionUpdatedTime"),
   sessionTitleInput: document.querySelector("#sessionTitleInput"),
   sessionCategorySelect: document.querySelector("#sessionCategorySelect"),
   sessionSceneSelect: document.querySelector("#sessionSceneSelect"),
@@ -140,6 +145,22 @@ const providerFallbacks = {
     supported_languages: ["zh_cn", "zh_en"],
     supported_modes: ["long"],
   },
+  baidu_short: {
+    id: "baidu_short",
+    label: "百度短语音识别",
+    enabled: false,
+    supported_sources: ["microphone", "file", "system"],
+    supported_languages: ["zh_cn", "zh_en", "en_us", "dialect"],
+    supported_modes: ["short"],
+  },
+  baidu_realtime: {
+    id: "baidu_realtime",
+    label: "百度实时语音识别",
+    enabled: false,
+    supported_sources: ["microphone", "system"],
+    supported_languages: ["zh_cn", "zh_en", "en_us", "dialect"],
+    supported_modes: ["realtime"],
+  },
   future: {
     id: "future",
     label: "待扩展接口",
@@ -153,6 +174,7 @@ const providerFallbacks = {
 const vendorProviders = {
   browser: ["browser"],
   xfyun: ["xfyun_iat", "xfyun_lfasr_large"],
+  baidu: ["baidu_short", "baidu_realtime"],
 };
 
 const sourceLabels = {
@@ -337,6 +359,7 @@ function getProviderInfo(providerId = elements.providerSelect.value) {
 
 function syncVendorOptions() {
   const xfyunReady = vendorProviders.xfyun.some((providerId) => getProviderInfo(providerId).enabled);
+  const baiduReady = vendorProviders.baidu.some((providerId) => getProviderInfo(providerId).enabled);
 
   for (const option of elements.vendorSelect.options) {
     if (option.value === "browser") {
@@ -345,6 +368,9 @@ function syncVendorOptions() {
     } else if (option.value === "xfyun") {
       option.disabled = !xfyunReady;
       option.textContent = xfyunReady ? "科大讯飞 API" : "科大讯飞 API（未配置）";
+    } else if (option.value === "baidu") {
+      option.disabled = !baiduReady;
+      option.textContent = baiduReady ? "百度 API" : "百度 API（未配置）";
     } else {
       option.disabled = true;
     }
@@ -420,11 +446,11 @@ async function handleRecognition() {
     speechController.toggle(elements.languageSelect.value);
     return;
   }
-  if (provider === "xfyun_iat") {
+  if (isRealtimeProvider(provider)) {
     if (pcmStreamRecorder.isRecording()) {
-      await stopIatStreamRecognition();
+      await stopStreamRecognition();
     } else {
-      await startIatStreamRecognition(source);
+      await startStreamRecognition(source);
     }
     return;
   }
@@ -442,8 +468,9 @@ async function handleRecognition() {
   await startApiRecording(source);
 }
 
-async function startIatStreamRecognition(source) {
+async function startStreamRecognition(source) {
   clearPendingAudioAttachment();
+  const providerName = providerLabel(elements.providerSelect.value);
   const url = createAsrStreamUrl({
     provider: elements.providerSelect.value,
     source,
@@ -452,7 +479,7 @@ async function startIatStreamRecognition(source) {
 
   elements.recordButton.disabled = true;
   setRecognitionPhase("connecting", {
-    status: "正在连接 IAT",
+    status: `正在连接 ${providerName}`,
     source,
     transport: "WebSocket 连接中",
     detail: "正在建立实时识别通道。",
@@ -484,7 +511,7 @@ async function startIatStreamRecognition(source) {
       status: source === "system" ? "正在转写标签页音频" : "正在转写麦克风",
       source,
       transport: "16k PCM 流",
-      detail: "音频已开始实时送入 IAT。",
+      detail: `音频已开始实时送入 ${providerName}。`,
     });
   } catch (error) {
     socket.close();
@@ -502,13 +529,14 @@ async function startIatStreamRecognition(source) {
   }
 }
 
-async function stopIatStreamRecognition() {
+async function stopStreamRecognition() {
+  const providerName = providerLabel(elements.providerSelect.value);
   elements.recordButton.disabled = true;
   setRecognitionPhase("closing", {
     status: "正在收尾识别",
     source: elements.sourceSelect.value,
     transport: "等待最终结果",
-    detail: "已停止采集，正在等待 IAT 返回最终文本。",
+    detail: `已停止采集，正在等待 ${providerName} 返回最终文本。`,
     level: 0,
   });
 
@@ -532,7 +560,7 @@ function openStreamSocket(url) {
     socket.addEventListener("open", () => resolve(socket), { once: true });
     socket.addEventListener(
       "error",
-      () => reject(new Error("IAT 实时识别连接失败，请确认后端服务和讯飞配置。")),
+      () => reject(new Error("实时识别连接失败，请确认后端服务和 API 配置。")),
       { once: true },
     );
   });
@@ -542,6 +570,7 @@ function bindStreamSocket(socket) {
   socket.addEventListener("message", (event) => {
     const payload = JSON.parse(event.data);
     const source = elements.sourceSelect.value;
+    const providerName = providerLabel(payload.provider ?? elements.providerSelect.value);
     if (payload.type === "ready") {
       setRecognitionPhase("capturing", {
         status: "实时通道已就绪",
@@ -556,7 +585,7 @@ function bindStreamSocket(socket) {
       setRecognitionPhase("recognizing", {
         status: "实时识别中",
         source,
-        transport: "IAT 返回片段",
+        transport: `${providerName} 返回片段`,
         detail: payload.segment || "正在接收识别片段",
       });
       updateMetrics();
@@ -568,7 +597,7 @@ function bindStreamSocket(socket) {
         status: payload.text ? "实时识别完成" : "未识别到文本",
         source,
         transport: "最终结果",
-        detail: `IAT 实时识别完成，耗时 ${payload.duration_ms}ms`,
+        detail: `${providerName} 实时识别完成，耗时 ${payload.duration_ms}ms`,
         level: 0,
       });
       updateMetrics();
@@ -890,6 +919,35 @@ function renderCategoryFilters() {
   if (selectedSession && !elements.sessionDetailForm.classList.contains("hidden")) {
     renderSessionCategoryOptions(selectedSession.category_id);
   }
+  renderCategoryManager();
+}
+
+function renderCategoryManager() {
+  elements.categorySummary.textContent = `${state.historyCategories.length} 项`;
+  if (!state.historyCategories.length) {
+    elements.categoryList.innerHTML = '<p class="history-empty">暂无分类。</p>';
+    return;
+  }
+
+  elements.categoryList.innerHTML = state.historyCategories
+    .map((category) => {
+      const action = category.builtin
+        ? '<span class="history-time">内置</span>'
+        : `<button class="text-button danger-text" type="button" data-category-delete="${escapeHtml(category.id)}">删除</button>`;
+      return `
+        <div class="category-manager-item">
+          <span class="category-chip" style="--category-color: ${escapeHtml(category.color)}">
+            ${escapeHtml(category.name)}
+          </span>
+          ${action}
+        </div>
+      `;
+    })
+    .join("");
+
+  for (const button of elements.categoryList.querySelectorAll("button[data-category-delete]")) {
+    button.addEventListener("click", () => handleDeleteCategory(button.dataset.categoryDelete));
+  }
 }
 
 function renderHistory(items) {
@@ -910,12 +968,15 @@ function renderHistory(items) {
 }
 
 function renderHistoryItem(item) {
-  const time = new Date(item.updated_at ?? item.created_at).toLocaleString();
+  const time = formatDateTime(item.created_at);
   const category = getCategory(item.category_id);
   const categoryName = category?.name ?? "未分类";
   const categoryColor = category?.color ?? "#94a3b8";
   const favoriteClass = item.favorite ? " is-favorite" : "";
   const favoriteLabel = item.favorite ? "取消收藏" : "收藏";
+  const title = item.title ?? "未命名会话";
+  const preview = item.processed_text || item.raw_text || title;
+  const shouldShowPreview = !isRedundantPreview(title, preview);
   return `
     <article class="history-item${favoriteClass}">
       <div class="history-title-row">
@@ -928,19 +989,17 @@ function renderHistoryItem(item) {
           data-history-id="${item.id}"
         >${item.favorite ? "★" : "☆"}</button>
         <div>
-          <strong>${escapeHtml(item.title ?? "未命名会话")}</strong>
+          <strong>${escapeHtml(title)}</strong>
           <div class="history-meta">
             <span class="category-chip" style="--category-color: ${categoryColor}">${escapeHtml(categoryName)}</span>
             <span>${sceneLabel(item.scene)}</span>
             <span>${time}</span>
-            <span>${item.metrics.processed_length} 字</span>
           </div>
         </div>
       </div>
-      <p class="history-text">${escapeHtml(item.processed_text)}</p>
+      ${shouldShowPreview ? `<p class="history-text">${escapeHtml(preview)}</p>` : ""}
       <div class="history-meta">
         <span>原文 ${item.metrics.raw_length} 字</span>
-        <span>清理 ${item.metrics.removed_fillers} 处</span>
         <span>${item.audio ? "有音频" : "无音频"}</span>
       </div>
       <div class="history-actions">
@@ -977,6 +1036,10 @@ function openSessionDetail(item) {
   elements.sessionDetailForm.classList.remove("hidden");
   elements.sessionDetailHeading.textContent = "会话详情";
   elements.sessionDetailStatus.textContent = item.favorite ? "已收藏" : "可编辑";
+  elements.sessionCreatedTime.textContent = `记录时间 ${formatDateTime(item.created_at)}`;
+  elements.sessionUpdatedTime.textContent = hasUpdatedAfterCreate(item)
+    ? `上次编辑 ${formatDateTime(item.updated_at)}`
+    : "上次编辑 未修改";
   elements.sessionTitleInput.value = item.title ?? "";
   elements.sessionSceneSelect.value = item.scene;
   elements.sessionFavoriteCheckbox.checked = Boolean(item.favorite);
@@ -1116,8 +1179,11 @@ async function handleHistoryAction(action, id) {
   }
 
   if (action === "favorite") {
-    await updateTranscript(id, { favorite: !item.favorite });
+    const updated = await updateTranscript(id, { favorite: !item.favorite });
     await loadHistory();
+    if (state.selectedSessionId === id) {
+      openSessionDetail(updated);
+    }
     return;
   }
 
@@ -1180,6 +1246,33 @@ async function handleAddCategory(event) {
     });
     elements.categoryNameInput.value = "";
     await loadSessionLibrary();
+  } catch (error) {
+    window.alert(error.message);
+  }
+}
+
+async function handleDeleteCategory(categoryId) {
+  const category = state.historyCategories.find((item) => item.id === categoryId);
+  if (!category || category.builtin) {
+    return;
+  }
+
+  const confirmed = window.confirm(`确定删除分类“${category.name}”吗？该分类下的会话会变为未分类。`);
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    await deleteTranscriptCategory(categoryId);
+    if (state.historyFilters.categoryId === categoryId) {
+      state.historyFilters.categoryId = "";
+      elements.historyCategoryFilter.value = "";
+    }
+    await loadSessionLibrary();
+    const selectedSession = getSelectedSession();
+    if (selectedSession && !elements.sessionDetailForm.classList.contains("hidden")) {
+      openSessionDetail(selectedSession);
+    }
   } catch (error) {
     window.alert(error.message);
   }
@@ -1315,6 +1408,41 @@ function providerLabel(provider) {
   return getProviderInfo(provider).label;
 }
 
+function formatDateTime(value) {
+  if (!value) {
+    return "-";
+  }
+  return new Date(value).toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function hasUpdatedAfterCreate(item) {
+  if (!item?.created_at || !item?.updated_at) {
+    return false;
+  }
+  return Math.abs(new Date(item.updated_at).getTime() - new Date(item.created_at).getTime()) > 1000;
+}
+
+function isRedundantPreview(title, preview) {
+  const normalizedTitle = normalizePreviewText(title);
+  const normalizedPreview = normalizePreviewText(preview);
+  return !normalizedPreview || normalizedPreview === normalizedTitle || normalizedPreview.startsWith(normalizedTitle);
+}
+
+function normalizePreviewText(value) {
+  return String(value ?? "").replace(/\s+/g, "");
+}
+
+function isRealtimeProvider(providerId) {
+  const provider = getProviderInfo(providerId);
+  return provider.id !== "browser" && (provider.supported_modes ?? []).includes("realtime");
+}
+
 function setOptionState(select, supportedValues, labels) {
   for (const option of select.options) {
     const supported = supportedValues.includes(option.value);
@@ -1360,20 +1488,28 @@ function syncRecognitionControls() {
   if (browserMode) {
     elements.recordButton.textContent = "开始识别";
     setRecognitionHint("本机识别使用浏览器 Web Speech API，支持前端实时临时结果；输入场景会在“整理文本”时生效。");
-  } else if (provider.id === "xfyun_iat") {
+  } else if (isRealtimeProvider(provider.id)) {
     elements.recordButton.textContent = pcmStreamRecorder.isRecording()
       ? "停止实时识别"
       : "开始实时识别";
-    setRecognitionHint("IAT 用于麦克风或标签页短音频，会通过 WebSocket 实时显示识别中的文本。");
+    setRecognitionHint(
+      `${provider.label}用于麦克风或标签页短音频，会通过 WebSocket 实时显示识别中的文本。`,
+    );
   } else if (fileMode) {
     elements.recordButton.textContent = "上传并识别";
-    setRecognitionHint("录音文件转写会上传完整音频并轮询最终结果，适合长音频。");
+    setRecognitionHint(
+      provider.id === "baidu_short"
+        ? "百度短语音识别适合 60 秒以内音频，会上传完整音频并立即返回结果。"
+        : "录音文件转写会上传完整音频并轮询最终结果，适合长音频。",
+    );
   } else {
     elements.recordButton.textContent = wavRecorder.isRecording() ? "停止并识别" : "开始录制";
     setRecognitionHint(
-      source === "system"
-        ? "扬声器音频通过浏览器屏幕/标签页共享采集，停止后上传到录音文件转写接口。"
-        : "录制完成后会生成 16k WAV 并上传到所选识别接口。",
+      provider.id === "baidu_short"
+        ? "录制完成后会生成 16k WAV，并上传到百度短语音识别接口。建议控制在 60 秒以内。"
+        : source === "system"
+          ? "扬声器音频通过浏览器屏幕/标签页共享采集，停止后上传到录音文件转写接口。"
+          : "录制完成后会生成 16k WAV 并上传到所选识别接口。",
     );
   }
 }

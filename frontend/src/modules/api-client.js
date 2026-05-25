@@ -214,6 +214,23 @@ export async function createTranscriptCategory({ name, color }) {
   return response.json();
 }
 
+export async function deleteTranscriptCategory(id) {
+  const response = await fetch(`${API_BASE_URL}/api/transcript-categories/${id}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok && response.status !== 404) {
+    let message = "删除会话分类失败";
+    try {
+      const payload = await response.json();
+      message = payload.detail ?? message;
+    } catch {
+      // Keep the default message when the backend returns a non-JSON error.
+    }
+    throw new Error(message);
+  }
+}
+
 export async function listHotwords() {
   const response = await fetch(`${API_BASE_URL}/api/hotwords`);
 

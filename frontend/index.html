@@ -40,6 +40,7 @@
               <select id="vendorSelect">
                 <option value="browser">本机浏览器识别</option>
                 <option value="xfyun">科大讯飞 API</option>
+                <option value="baidu">百度 API</option>
               </select>
             </div>
 
@@ -49,6 +50,8 @@
                 <option value="browser">浏览器 Web Speech API</option>
                 <option value="xfyun_iat">语音听写 IAT</option>
                 <option value="xfyun_lfasr_large">录音文件转写大模型</option>
+                <option value="baidu_short">短语音识别</option>
+                <option value="baidu_realtime">实时语音识别</option>
               </select>
             </div>
 
@@ -203,11 +206,18 @@
                 <span>只看收藏</span>
               </label>
             </div>
-            <form class="category-form" id="categoryForm">
-              <input id="categoryNameInput" maxlength="24" placeholder="新建分类，例如 面试" />
-              <input id="categoryColorInput" type="color" value="#0f766e" aria-label="分类颜色" />
-              <button class="secondary-button" type="submit">添加</button>
-            </form>
+            <details class="category-manager">
+              <summary>
+                <span>分类管理</span>
+                <span id="categorySummary">0 项</span>
+              </summary>
+              <div id="categoryList" class="category-list"></div>
+              <form class="category-form" id="categoryForm">
+                <input id="categoryNameInput" maxlength="24" placeholder="新建分类，例如 面试" />
+                <input id="categoryColorInput" type="color" value="#0f766e" aria-label="分类颜色" />
+                <button class="secondary-button" type="submit">添加</button>
+              </form>
+            </details>
             <div id="historyList" class="history-list"></div>
           </section>
 
@@ -218,9 +228,13 @@
             </div>
             <div class="session-empty" id="sessionDetailEmpty">从左侧打开一条会话后，可以编辑文本、管理分类和处理音频附件。</div>
             <form class="session-detail-form hidden" id="sessionDetailForm">
+              <div class="session-time-strip">
+                <span id="sessionCreatedTime">记录时间 -</span>
+                <span id="sessionUpdatedTime">上次编辑 -</span>
+              </div>
               <div class="detail-grid">
                 <label class="field">
-                  <span>标题</span>
+                  <span>会话标题</span>
                   <input id="sessionTitleInput" maxlength="80" />
                 </label>
                 <label class="field">
