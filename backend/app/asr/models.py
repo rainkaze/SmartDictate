@@ -7,6 +7,8 @@ class AsrProviderName(StrEnum):
     BROWSER = "browser"
     XFYUN_IAT = "xfyun_iat"
     XFYUN_LFASR_LARGE = "xfyun_lfasr_large"
+    BAIDU_SHORT = "baidu_short"
+    BAIDU_REALTIME = "baidu_realtime"
     FUTURE = "future"
 
 

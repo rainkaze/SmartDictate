@@ -6,6 +6,12 @@ from backend.app.asr.models import (
     AudioSource,
     RecognitionMode,
 )
+from backend.app.asr.providers.baidu import (
+    _BaiduRealtimeTranscriptAccumulator,
+    _realtime_dev_pid,
+    _short_dev_pid,
+    validate_baidu_stream_request,
+)
 from backend.app.asr.providers.registry import AsrProviderRegistry
 from backend.app.asr.providers.xfyun import (
     _IatTranscriptAccumulator,
@@ -25,6 +31,8 @@ def test_asr_registry_exposes_extensible_provider_list() -> None:
         AsrProviderName.BROWSER,
         AsrProviderName.XFYUN_IAT,
         AsrProviderName.XFYUN_LFASR_LARGE,
+        AsrProviderName.BAIDU_SHORT,
+        AsrProviderName.BAIDU_REALTIME,
         AsrProviderName.FUTURE,
     }
     assert providers[AsrProviderName.BROWSER].enabled is True
@@ -34,6 +42,11 @@ def test_asr_registry_exposes_extensible_provider_list() -> None:
     assert providers[AsrProviderName.XFYUN_LFASR_LARGE].supported_modes == [RecognitionMode.LONG]
     assert AudioSource.SYSTEM in providers[AsrProviderName.XFYUN_LFASR_LARGE].supported_sources
     assert providers[AsrProviderName.XFYUN_LFASR_LARGE].enabled is False
+    assert providers[AsrProviderName.BAIDU_SHORT].supported_modes == [RecognitionMode.SHORT]
+    assert AudioSource.FILE in providers[AsrProviderName.BAIDU_SHORT].supported_sources
+    assert providers[AsrProviderName.BAIDU_REALTIME].supported_modes == [RecognitionMode.REALTIME]
+    assert AudioSource.FILE not in providers[AsrProviderName.BAIDU_REALTIME].supported_sources
+    assert providers[AsrProviderName.BAIDU_SHORT].enabled is False
 
 
 def test_xfyun_provider_requires_credentials() -> None:
@@ -64,6 +77,51 @@ def test_xfyun_provider_configuration_is_isolated_by_interface() -> None:
 
     assert providers[AsrProviderName.XFYUN_IAT].enabled is True
     assert providers[AsrProviderName.XFYUN_LFASR_LARGE].enabled is True
+
+
+def test_baidu_provider_configuration_exposes_short_and_realtime() -> None:
+    registry = AsrProviderRegistry(
+        Settings(
+            baidu_asr_app_id="123",
+            baidu_asr_api_key="api-key",
+            baidu_asr_secret_key="secret-key",
+        )
+    )
+
+    providers = {provider.info().id: provider.info() for provider in registry.list()}
+
+    assert providers[AsrProviderName.BAIDU_SHORT].enabled is True
+    assert providers[AsrProviderName.BAIDU_REALTIME].enabled is True
+
+
+def test_baidu_realtime_rejects_local_file_source() -> None:
+    with pytest.raises(ValueError, match="不支持本机文件上传"):
+        validate_baidu_stream_request(
+            Settings(
+                baidu_asr_app_id="123",
+                baidu_asr_api_key="api-key",
+                baidu_asr_secret_key="secret-key",
+            ),
+            AudioSource.FILE,
+        )
+
+
+def test_baidu_model_pid_mapping_matches_supported_languages() -> None:
+    assert _short_dev_pid(AudioLanguage.ZH_CN) == 1537
+    assert _short_dev_pid(AudioLanguage.EN_US) == 1737
+    assert _short_dev_pid(AudioLanguage.DIALECT) == 1637
+    assert _realtime_dev_pid(AudioLanguage.ZH_CN) == 15372
+    assert _realtime_dev_pid(AudioLanguage.EN_US) == 17372
+    assert _realtime_dev_pid(AudioLanguage.DIALECT) == 15376
+
+
+def test_baidu_realtime_accumulator_replaces_sentence_partials() -> None:
+    accumulator = _BaiduRealtimeTranscriptAccumulator()
+
+    assert accumulator.update_partial("北京天气怎") == "北京天气怎"
+    assert accumulator.update_partial("北京天气怎么样") == "北京天气怎么样"
+    assert accumulator.add_final("北京天气怎么样。") == "北京天气怎么样。"
+    assert accumulator.update_partial("上海") == "北京天气怎么样。上海"
 
 
 def test_iat_rejects_local_file_upload() -> None:

@@ -19,6 +19,11 @@ class Settings:
     xfyun_request_timeout: int = 45
     xfyun_file_poll_interval: int = 5
     xfyun_file_max_polls: int = 24
+    baidu_asr_app_id: str = ""
+    baidu_asr_api_key: str = ""
+    baidu_asr_secret_key: str = ""
+    baidu_asr_request_timeout: int = 45
+    baidu_asr_realtime_idle_timeout: int = 8
     cors_allow_origins: tuple[str, ...] = (
         "http://127.0.0.1:5173",
         "http://localhost:5173",
@@ -46,6 +51,19 @@ def get_settings() -> Settings:
         ),
         xfyun_file_max_polls=int(
             os.getenv("XFYUN_FILE_MAX_POLLS", str(Settings.xfyun_file_max_polls))
+        ),
+        baidu_asr_app_id=os.getenv("BAIDU_ASR_APP_ID") or os.getenv("BAIDU_APP_ID", ""),
+        baidu_asr_api_key=os.getenv("BAIDU_ASR_API_KEY") or os.getenv("BAIDU_API_KEY", ""),
+        baidu_asr_secret_key=os.getenv("BAIDU_ASR_SECRET_KEY")
+        or os.getenv("BAIDU_SECRET_KEY", ""),
+        baidu_asr_request_timeout=int(
+            os.getenv("BAIDU_ASR_REQUEST_TIMEOUT", str(Settings.baidu_asr_request_timeout))
+        ),
+        baidu_asr_realtime_idle_timeout=int(
+            os.getenv(
+                "BAIDU_ASR_REALTIME_IDLE_TIMEOUT",
+                str(Settings.baidu_asr_realtime_idle_timeout),
+            )
         ),
         cors_allow_origins=origins or Settings.cors_allow_origins,
     )

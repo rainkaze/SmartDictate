@@ -19,6 +19,10 @@ from backend.app.asr.models import (
     AudioSource,
     RecognitionMode,
 )
+from backend.app.asr.providers.baidu import (
+    BaiduRealtimeStreamingSession,
+    validate_baidu_stream_request,
+)
 from backend.app.asr.providers.registry import AsrProviderRegistry
 from backend.app.asr.streaming import IatStreamingSession, validate_iat_stream_request
 from backend.app.core.config import get_settings
@@ -91,21 +95,31 @@ async def stream_asr(
 ) -> None:
     await websocket.accept()
 
-    if provider != AsrProviderName.XFYUN_IAT:
-        await websocket.send_json({"type": "error", "message": "当前仅支持 IAT 实时流式识别"})
+    if provider not in {AsrProviderName.XFYUN_IAT, AsrProviderName.BAIDU_REALTIME}:
+        await websocket.send_json({"type": "error", "message": "当前接口不支持实时流式识别"})
         await websocket.close(code=1008)
         return
 
     try:
-        validate_iat_stream_request(settings, source)
+        if provider == AsrProviderName.XFYUN_IAT:
+            validate_iat_stream_request(settings, source)
+            session = IatStreamingSession(settings=settings, source=source, language=language)
+            ready_message = "IAT 实时识别已连接"
+        else:
+            validate_baidu_stream_request(settings, source)
+            session = BaiduRealtimeStreamingSession(
+                settings=settings,
+                source=source,
+                language=language,
+            )
+            ready_message = "百度实时语音识别已连接"
     except ValueError as exc:
         await websocket.send_json({"type": "error", "message": str(exc)})
         await websocket.close(code=1008)
         return
 
-    session = IatStreamingSession(settings=settings, source=source, language=language)
     session.start()
-    await websocket.send_json({"type": "ready", "message": "IAT 实时识别已连接"})
+    await websocket.send_json({"type": "ready", "message": ready_message})
 
     async def receive_audio() -> None:
         try:
@@ -169,6 +183,8 @@ async def transcribe_audio(
         raise HTTPException(status_code=400, detail="浏览器识别在前端完成，不支持后端上传转写")
     if provider == AsrProviderName.FUTURE:
         raise HTTPException(status_code=501, detail="该识别工具尚未实现")
+    if provider == AsrProviderName.BAIDU_REALTIME:
+        raise HTTPException(status_code=400, detail="百度实时语音识别请通过实时 WebSocket 接口调用")
 
     upload_dir = Path(settings.upload_dir)
     upload_dir.mkdir(parents=True, exist_ok=True)
