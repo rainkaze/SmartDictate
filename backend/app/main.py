@@ -91,7 +91,7 @@ async def stream_asr(
     websocket: WebSocket,
     provider: Annotated[AsrProviderName, Query()] = AsrProviderName.XFYUN_IAT,
     source: Annotated[AudioSource, Query()] = AudioSource.MICROPHONE,
-    language: Annotated[AudioLanguage, Query()] = AudioLanguage.ZH_EN,
+    language: Annotated[AudioLanguage, Query()] = AudioLanguage.ZH_CN,
 ) -> None:
     await websocket.accept()
 
@@ -176,7 +176,7 @@ async def transcribe_audio(
 
     provider = AsrProviderName(str(form.get("provider", AsrProviderName.XFYUN_IAT)))
     source = AudioSource(str(form.get("source", AudioSource.MICROPHONE)))
-    language = AudioLanguage(str(form.get("language", AudioLanguage.ZH_EN)))
+    language = AudioLanguage(str(form.get("language", AudioLanguage.ZH_CN)))
     mode = RecognitionMode(str(form.get("mode", RecognitionMode.SHORT)))
 
     if provider == AsrProviderName.BROWSER:

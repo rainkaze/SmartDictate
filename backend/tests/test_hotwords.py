@@ -98,4 +98,4 @@ def test_default_rules_are_valid_utf8() -> None:
 
     assert "嗯" in rules.filler_words
     assert rules.hotwords["七牛"] == "七牛云"
-    assert rules.scene_prefixes["meeting"] == "会议纪要："
+    assert rules.scene_prefixes == {}

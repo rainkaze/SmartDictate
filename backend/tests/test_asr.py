@@ -39,11 +39,17 @@ def test_asr_registry_exposes_extensible_provider_list() -> None:
     assert providers[AsrProviderName.XFYUN_IAT].enabled is False
     assert providers[AsrProviderName.XFYUN_IAT].supported_modes == [RecognitionMode.REALTIME]
     assert AudioSource.FILE not in providers[AsrProviderName.XFYUN_IAT].supported_sources
+    assert AudioLanguage.ZH_EN not in providers[AsrProviderName.XFYUN_IAT].supported_languages
     assert providers[AsrProviderName.XFYUN_LFASR_LARGE].supported_modes == [RecognitionMode.LONG]
     assert AudioSource.SYSTEM in providers[AsrProviderName.XFYUN_LFASR_LARGE].supported_sources
     assert providers[AsrProviderName.XFYUN_LFASR_LARGE].enabled is False
+    assert providers[AsrProviderName.XFYUN_LFASR_LARGE].supported_languages == [
+        AudioLanguage.ZH_CN,
+        AudioLanguage.DIALECT,
+    ]
     assert providers[AsrProviderName.BAIDU_SHORT].supported_modes == [RecognitionMode.SHORT]
     assert AudioSource.FILE in providers[AsrProviderName.BAIDU_SHORT].supported_sources
+    assert AudioLanguage.ZH_EN not in providers[AsrProviderName.BAIDU_SHORT].supported_languages
     assert providers[AsrProviderName.BAIDU_REALTIME].supported_modes == [RecognitionMode.REALTIME]
     assert AudioSource.FILE not in providers[AsrProviderName.BAIDU_REALTIME].supported_sources
     assert providers[AsrProviderName.BAIDU_SHORT].enabled is False
