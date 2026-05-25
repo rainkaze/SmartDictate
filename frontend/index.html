@@ -7,168 +7,276 @@
   </head>
   <body>
     <main class="app-shell">
-      <section class="workspace">
-        <header class="topbar">
-          <div>
-            <h1>SmartDictate</h1>
-            <p>本地优先的智能语音输入助手</p>
-          </div>
-          <div class="status-pill" id="apiStatus">后端检测中</div>
-        </header>
+      <header class="app-header">
+        <div>
+          <h1>SmartDictate</h1>
+          <p>本地优先的智能语音输入助手</p>
+        </div>
+        <div class="status-pill" id="apiStatus">后端检测中</div>
+      </header>
 
-        <section class="control-panel" aria-label="语音输入控制">
-          <div class="field">
-            <label for="sceneSelect">输入场景</label>
-            <select id="sceneSelect">
-              <option value="general">通用输入</option>
-              <option value="meeting">会议纪要</option>
-              <option value="study">学习笔记</option>
-              <option value="message">聊天回复</option>
-              <option value="code_note">代码说明</option>
-            </select>
-          </div>
+      <nav class="app-nav" aria-label="主导航">
+        <button class="nav-button active" type="button" data-view-target="workbench">工作台</button>
+        <button class="nav-button" type="button" data-view-target="sessions">会话库</button>
+        <button class="nav-button" type="button" data-view-target="hotwords">热词</button>
+      </nav>
 
-          <div class="field">
-            <label for="vendorSelect">识别工具</label>
-            <select id="vendorSelect">
-              <option value="browser">本机浏览器识别</option>
-              <option value="xfyun">科大讯飞 API</option>
-              <option value="baidu" disabled>百度 API（未配置）</option>
-              <option value="future" disabled>待扩展 API（未配置）</option>
-            </select>
-          </div>
-
-          <div class="field" id="apiField">
-            <label for="providerSelect">具体接口</label>
-            <select id="providerSelect">
-              <option value="browser">浏览器 Web Speech API</option>
-              <option value="xfyun_iat">语音听写 IAT</option>
-              <option value="xfyun_lfasr_large">录音文件转写大模型</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label for="sourceSelect">音频来源</label>
-            <select id="sourceSelect">
-              <option value="microphone">直接监听麦克风</option>
-              <option value="file">选择本机音频文件</option>
-              <option value="system">扬声器 / 标签页音频</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label for="languageSelect">音频种类</label>
-            <select id="languageSelect">
-              <option value="zh_en">中英混合</option>
-              <option value="zh_cn">中文普通话</option>
-              <option value="en_us">英语</option>
-              <option value="ja_jp">日语</option>
-              <option value="dialect">方言</option>
-              <option value="other">其他 / 待扩展</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label for="modeSelect">识别模式</label>
-            <select id="modeSelect">
-              <option value="short">短音频听写</option>
-              <option value="realtime">实时转写</option>
-              <option value="long">录音文件转写</option>
-            </select>
-          </div>
-
-          <div class="field file-field" id="fileField">
-            <label for="audioFileInput">音频文件</label>
-            <input id="audioFileInput" type="file" accept="audio/*,.pcm,.wav,.mp3,.m4a" />
-          </div>
-
-          <div class="actions">
-            <button class="primary-button" id="recordButton" type="button">开始识别</button>
-            <button class="secondary-button" id="sampleButton" type="button">填入示例</button>
-            <button class="secondary-button" id="processButton" type="button">整理文本</button>
-            <button class="secondary-button" id="copyButton" type="button">复制结果</button>
-            <button class="secondary-button" id="clearButton" type="button">清空</button>
-          </div>
-        </section>
-
-        <section class="recognition-panel" id="recognitionPanel" data-stream-state="idle" aria-label="语音识别状态">
-          <div class="recognition-summary">
-            <span class="eyebrow">识别状态</span>
-            <div class="status-line">
-              <span class="stream-dot" aria-hidden="true"></span>
-              <strong id="recognitionStatus">等待输入</strong>
+      <section class="app-view active" id="workbenchView" data-view="workbench">
+        <section class="workspace">
+          <section class="control-panel" aria-label="语音输入控制">
+            <div class="field">
+              <label for="sceneSelect">输入场景</label>
+              <select id="sceneSelect">
+                <option value="general">通用输入</option>
+                <option value="meeting">会议纪要</option>
+                <option value="study">学习笔记</option>
+                <option value="message">聊天回复</option>
+                <option value="code_note">代码说明</option>
+              </select>
             </div>
-            <div class="stream-meta">
-              <span id="streamPhase">待输入</span>
-              <span id="streamSource">未采集</span>
-            </div>
-          </div>
-          <div class="waveform" id="waveform" aria-label="实时音频强度">
-            <span style="--index: 0"></span>
-            <span style="--index: 1"></span>
-            <span style="--index: 2"></span>
-            <span style="--index: 3"></span>
-            <span style="--index: 4"></span>
-            <span style="--index: 5"></span>
-            <span style="--index: 6"></span>
-            <span style="--index: 7"></span>
-            <span style="--index: 8"></span>
-            <span style="--index: 9"></span>
-            <span style="--index: 10"></span>
-            <span style="--index: 11"></span>
-            <span style="--index: 12"></span>
-            <span style="--index: 13"></span>
-            <span style="--index: 14"></span>
-            <span style="--index: 15"></span>
-            <span style="--index: 16"></span>
-            <span style="--index: 17"></span>
-          </div>
-          <div class="recognition-copy">
-            <p id="interimText">浏览器识别会实时显示临时结果；API 识别会在录制或上传完成后返回文本。</p>
-            <span id="streamTransport">本地待命</span>
-          </div>
-        </section>
 
-        <section class="editor-grid">
-          <div class="editor-pane">
-            <div class="pane-header">
-              <h2>原始转写</h2>
-              <span>可手动编辑</span>
+            <div class="field">
+              <label for="vendorSelect">识别工具</label>
+              <select id="vendorSelect">
+                <option value="browser">本机浏览器识别</option>
+                <option value="xfyun">科大讯飞 API</option>
+              </select>
             </div>
-            <textarea id="rawText" placeholder="点击开始识别，录制短音频或上传长音频文件，也可以直接粘贴文本进行整理。"></textarea>
-          </div>
 
-          <div class="editor-pane">
-            <div class="pane-header">
-              <h2>整理结果</h2>
-              <span id="copyStatus">未复制</span>
+            <div class="field" id="apiField">
+              <label for="providerSelect">具体接口</label>
+              <select id="providerSelect">
+                <option value="browser">浏览器 Web Speech API</option>
+                <option value="xfyun_iat">语音听写 IAT</option>
+                <option value="xfyun_lfasr_large">录音文件转写大模型</option>
+              </select>
             </div>
-            <textarea id="processedText" placeholder="整理后的文本会显示在这里。"></textarea>
-          </div>
-        </section>
 
-        <section class="metrics-grid" aria-label="输入效率指标">
-          <article>
-            <span>原文字数</span>
-            <strong id="rawLength">0</strong>
-          </article>
-          <article>
-            <span>结果字数</span>
-            <strong id="processedLength">0</strong>
-          </article>
-          <article>
-            <span>清理口癖</span>
-            <strong id="removedFillers">0</strong>
-          </article>
-          <article>
-            <span>识别耗时</span>
-            <strong id="elapsedSeconds">0s</strong>
-          </article>
+            <div class="field">
+              <label for="sourceSelect">音频来源</label>
+              <select id="sourceSelect">
+                <option value="microphone">直接监听麦克风</option>
+                <option value="file">选择本机音频文件</option>
+                <option value="system">扬声器 / 标签页音频</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="languageSelect">音频种类</label>
+              <select id="languageSelect">
+                <option value="zh_en">中英混合</option>
+                <option value="zh_cn">中文普通话</option>
+                <option value="en_us">英语</option>
+                <option value="ja_jp">日语</option>
+                <option value="dialect">方言</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="modeSelect">识别模式</label>
+              <select id="modeSelect">
+                <option value="short">短音频听写</option>
+                <option value="realtime">实时转写</option>
+                <option value="long">录音文件转写</option>
+              </select>
+            </div>
+
+            <div class="field file-field" id="fileField">
+              <label for="audioFileInput">音频文件</label>
+              <input id="audioFileInput" type="file" accept="audio/*,.pcm,.wav,.mp3,.m4a" />
+            </div>
+
+            <div class="archive-option">
+              <label class="checkbox-field">
+                <input id="saveAudioCheckbox" type="checkbox" />
+                <span>保存音频到会话库</span>
+              </label>
+              <p id="saveAudioHint">录音、上传文件和 IAT 实时转写可保存音频；浏览器 Web Speech 不提供音频文件。</p>
+            </div>
+
+            <div class="actions">
+              <button class="primary-button" id="recordButton" type="button">开始识别</button>
+              <button class="secondary-button" id="sampleButton" type="button">填入示例</button>
+              <button class="secondary-button" id="processButton" type="button">整理文本</button>
+              <button class="secondary-button" id="copyButton" type="button">复制结果</button>
+              <button class="secondary-button" id="clearButton" type="button">清空</button>
+            </div>
+          </section>
+
+          <section class="recognition-panel" id="recognitionPanel" data-stream-state="idle" aria-label="语音识别状态">
+            <div class="recognition-summary">
+              <span class="eyebrow">识别状态</span>
+              <div class="status-line">
+                <span class="stream-dot" aria-hidden="true"></span>
+                <strong id="recognitionStatus">等待输入</strong>
+              </div>
+              <div class="stream-meta">
+                <span id="streamPhase">待输入</span>
+                <span id="streamSource">未采集</span>
+              </div>
+            </div>
+            <div class="waveform" id="waveform" aria-label="实时音频强度">
+              <span style="--index: 0"></span>
+              <span style="--index: 1"></span>
+              <span style="--index: 2"></span>
+              <span style="--index: 3"></span>
+              <span style="--index: 4"></span>
+              <span style="--index: 5"></span>
+              <span style="--index: 6"></span>
+              <span style="--index: 7"></span>
+              <span style="--index: 8"></span>
+              <span style="--index: 9"></span>
+              <span style="--index: 10"></span>
+              <span style="--index: 11"></span>
+              <span style="--index: 12"></span>
+              <span style="--index: 13"></span>
+              <span style="--index: 14"></span>
+              <span style="--index: 15"></span>
+              <span style="--index: 16"></span>
+              <span style="--index: 17"></span>
+            </div>
+            <div class="recognition-copy">
+              <p id="interimText">浏览器识别会实时显示临时结果；API 识别会在录制或上传完成后返回文本。</p>
+              <span id="streamTransport">本地待命</span>
+            </div>
+          </section>
+
+          <section class="editor-grid">
+            <div class="editor-pane">
+              <div class="pane-header">
+                <h2>原始转写</h2>
+                <span>可手动编辑</span>
+              </div>
+              <textarea id="rawText" placeholder="点击开始识别，录制短音频或上传长音频文件，也可以直接粘贴文本进行整理。"></textarea>
+            </div>
+
+            <div class="editor-pane">
+              <div class="pane-header">
+                <h2>整理结果</h2>
+                <span id="copyStatus">未复制</span>
+              </div>
+              <textarea id="processedText" placeholder="整理后的文本会显示在这里。"></textarea>
+            </div>
+          </section>
+
+          <section class="metrics-grid" aria-label="输入效率指标">
+            <article>
+              <span>原文字数</span>
+              <strong id="rawLength">0</strong>
+            </article>
+            <article>
+              <span>结果字数</span>
+              <strong id="processedLength">0</strong>
+            </article>
+            <article>
+              <span>清理口癖</span>
+              <strong id="removedFillers">0</strong>
+            </article>
+            <article>
+              <span>识别耗时</span>
+              <strong id="elapsedSeconds">0s</strong>
+            </article>
+          </section>
         </section>
       </section>
 
-      <aside class="side-panel">
-        <section class="dictionary-panel">
+      <section class="app-view" id="sessionsView" data-view="sessions">
+        <section class="library-layout">
+          <section class="history-panel library-panel">
+            <div class="pane-header">
+              <h2>会话库</h2>
+              <div class="history-toolbar">
+                <button class="text-button" id="refreshHistoryButton" type="button">刷新</button>
+                <button class="text-button danger-text" id="clearHistoryButton" type="button">清空</button>
+              </div>
+            </div>
+            <div class="history-controls" aria-label="会话筛选">
+              <input id="historySearchInput" maxlength="80" placeholder="搜索标题或内容" />
+              <div class="select-shell">
+                <select id="historyCategoryFilter">
+                  <option value="">全部分类</option>
+                  <option value="uncategorized">未分类</option>
+                </select>
+              </div>
+              <label class="checkbox-field">
+                <input id="historyFavoriteFilter" type="checkbox" />
+                <span>只看收藏</span>
+              </label>
+            </div>
+            <form class="category-form" id="categoryForm">
+              <input id="categoryNameInput" maxlength="24" placeholder="新建分类，例如 面试" />
+              <input id="categoryColorInput" type="color" value="#0f766e" aria-label="分类颜色" />
+              <button class="secondary-button" type="submit">添加</button>
+            </form>
+            <div id="historyList" class="history-list"></div>
+          </section>
+
+          <section class="session-detail-panel" id="sessionDetailPanel">
+            <div class="pane-header">
+              <h2 id="sessionDetailHeading">会话详情</h2>
+              <span id="sessionDetailStatus">选择一条会话</span>
+            </div>
+            <div class="session-empty" id="sessionDetailEmpty">从左侧打开一条会话后，可以编辑文本、管理分类和处理音频附件。</div>
+            <form class="session-detail-form hidden" id="sessionDetailForm">
+              <div class="detail-grid">
+                <label class="field">
+                  <span>标题</span>
+                  <input id="sessionTitleInput" maxlength="80" />
+                </label>
+                <label class="field">
+                  <span>分类</span>
+                  <select id="sessionCategorySelect"></select>
+                </label>
+                <label class="field">
+                  <span>场景</span>
+                  <select id="sessionSceneSelect">
+                    <option value="general">通用输入</option>
+                    <option value="meeting">会议纪要</option>
+                    <option value="study">学习笔记</option>
+                    <option value="message">聊天回复</option>
+                    <option value="code_note">代码说明</option>
+                  </select>
+                </label>
+                <label class="checkbox-field detail-checkbox">
+                  <input id="sessionFavoriteCheckbox" type="checkbox" />
+                  <span>收藏</span>
+                </label>
+              </div>
+              <div class="detail-editor-grid">
+                <label class="editor-pane">
+                  <span class="detail-label">原始转写</span>
+                  <textarea id="sessionRawText"></textarea>
+                </label>
+                <label class="editor-pane">
+                  <span class="detail-label">整理结果</span>
+                  <textarea id="sessionProcessedText"></textarea>
+                </label>
+              </div>
+              <section class="audio-attachment">
+                <div class="pane-header compact-header">
+                  <h2>音频附件</h2>
+                  <span id="sessionAudioMeta">未保存音频</span>
+                </div>
+                <audio id="sessionAudioPlayer" controls class="hidden"></audio>
+                <div class="audio-actions">
+                  <input id="sessionAudioInput" type="file" accept="audio/*,.pcm,.wav,.mp3,.m4a" />
+                  <button class="secondary-button" id="replaceSessionAudioButton" type="button">替换音频</button>
+                  <button class="text-button danger-text" id="deleteSessionAudioButton" type="button">删除音频</button>
+                </div>
+              </section>
+              <div class="detail-actions">
+                <button class="primary-button" id="saveSessionButton" type="submit">保存修改</button>
+                <button class="secondary-button" id="copySessionButton" type="button">复制结果</button>
+                <button class="secondary-button" id="sendSessionToWorkbenchButton" type="button">发送到工作台</button>
+                <button class="text-button danger-text" id="deleteSessionButton" type="button">删除会话</button>
+              </div>
+            </form>
+          </section>
+        </section>
+      </section>
+
+      <section class="app-view" id="hotwordsView" data-view="hotwords">
+        <section class="dictionary-panel full-panel">
           <div class="pane-header">
             <h2>热词字典</h2>
             <span id="hotwordStatus">未加载</span>
@@ -180,18 +288,7 @@
           </form>
           <div id="hotwordList" class="hotword-list"></div>
         </section>
-
-        <section class="history-panel">
-          <div class="pane-header">
-            <h2>最近记录</h2>
-            <div class="history-toolbar">
-              <button class="text-button" id="refreshHistoryButton" type="button">刷新</button>
-              <button class="text-button danger-text" id="clearHistoryButton" type="button">清空</button>
-            </div>
-          </div>
-          <div id="historyList" class="history-list"></div>
-        </section>
-      </aside>
+      </section>
     </main>
 
     <script type="module" src="/src/main.js"></script>

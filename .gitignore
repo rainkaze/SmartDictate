@@ -16,6 +16,7 @@ backend/data/*.json
 backend/data/*.sqlite3
 backend/data/*.sqlite3-*
 backend/data/test-runtime/
+backend/data/session-audio/
 backend/data/uploads/
 !backend/data/.gitkeep
 

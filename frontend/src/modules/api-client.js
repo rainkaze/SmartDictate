@@ -73,8 +73,22 @@ export async function processTranscript({ rawText, scene }) {
   return response.json();
 }
 
-export async function listTranscripts({ limit = 10 } = {}) {
+export async function listTranscripts({
+  limit = 20,
+  categoryId = "",
+  favorite = null,
+  query: searchQuery = "",
+} = {}) {
   const query = new URLSearchParams({ limit: String(limit) });
+  if (categoryId) {
+    query.set("category_id", categoryId);
+  }
+  if (favorite !== null) {
+    query.set("favorite", String(favorite));
+  }
+  if (searchQuery.trim()) {
+    query.set("query", searchQuery.trim());
+  }
   const response = await fetch(`${API_BASE_URL}/api/transcripts?${query.toString()}`);
 
   if (!response.ok) {
@@ -82,6 +96,69 @@ export async function listTranscripts({ limit = 10 } = {}) {
   }
 
   return response.json();
+}
+
+export async function updateTranscript(id, updates) {
+  const response = await fetch(`${API_BASE_URL}/api/transcripts/${id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(updates),
+  });
+
+  if (!response.ok) {
+    let message = "更新历史记录失败";
+    try {
+      const payload = await response.json();
+      message = payload.detail ?? message;
+    } catch {
+      // Keep the default message when the backend returns a non-JSON error.
+    }
+    throw new Error(message);
+  }
+
+  return response.json();
+}
+
+export function transcriptAudioUrl(id) {
+  return `${API_BASE_URL}/api/transcripts/${id}/audio`;
+}
+
+export async function uploadTranscriptAudio(id, { audioBlob, filename, durationMs }) {
+  const formData = new FormData();
+  formData.append("audio", audioBlob, filename);
+  if (typeof durationMs === "number") {
+    formData.append("duration_ms", String(durationMs));
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/transcripts/${id}/audio`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    let message = "保存会话音频失败";
+    try {
+      const payload = await response.json();
+      message = payload.detail ?? message;
+    } catch {
+      // Keep the default message when the backend returns a non-JSON error.
+    }
+    throw new Error(message);
+  }
+
+  return response.json();
+}
+
+export async function deleteTranscriptAudio(id) {
+  const response = await fetch(`${API_BASE_URL}/api/transcripts/${id}/audio`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok && response.status !== 404) {
+    throw new Error("删除会话音频失败");
+  }
 }
 
 export async function deleteTranscript(id) {
@@ -102,6 +179,39 @@ export async function clearTranscripts() {
   if (!response.ok) {
     throw new Error("清空历史记录失败");
   }
+}
+
+export async function listTranscriptCategories() {
+  const response = await fetch(`${API_BASE_URL}/api/transcript-categories`);
+
+  if (!response.ok) {
+    throw new Error("会话分类接口请求失败");
+  }
+
+  return response.json();
+}
+
+export async function createTranscriptCategory({ name, color }) {
+  const response = await fetch(`${API_BASE_URL}/api/transcript-categories`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name, color }),
+  });
+
+  if (!response.ok) {
+    let message = "添加会话分类失败";
+    try {
+      const payload = await response.json();
+      message = payload.detail ?? message;
+    } catch {
+      // Keep the default message when the backend returns a non-JSON error.
+    }
+    throw new Error(message);
+  }
+
+  return response.json();
 }
 
 export async function listHotwords() {

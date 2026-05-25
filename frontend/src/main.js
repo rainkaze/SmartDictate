@@ -1,15 +1,21 @@
 import {
   checkHealth,
   clearTranscripts,
+  createTranscriptCategory,
   createHotword,
   createAsrStreamUrl,
   deleteHotword,
   deleteTranscript,
+  deleteTranscriptAudio,
   listAsrProviders,
   listHotwords,
+  listTranscriptCategories,
   listTranscripts,
   processTranscript,
+  transcriptAudioUrl,
   transcribeAudio,
+  updateTranscript,
+  uploadTranscriptAudio,
 } from "./modules/api-client.js";
 import { createPcmStreamRecorder, createWavRecorder } from "./modules/audio-recorder.js";
 import { escapeHtml } from "./modules/html.js";
@@ -18,6 +24,8 @@ import "./styles.css";
 
 const elements = {
   apiStatus: document.querySelector("#apiStatus"),
+  navButtons: Array.from(document.querySelectorAll("[data-view-target]")),
+  views: Array.from(document.querySelectorAll("[data-view]")),
   sceneSelect: document.querySelector("#sceneSelect"),
   vendorSelect: document.querySelector("#vendorSelect"),
   apiField: document.querySelector("#apiField"),
@@ -27,6 +35,8 @@ const elements = {
   modeSelect: document.querySelector("#modeSelect"),
   fileField: document.querySelector("#fileField"),
   audioFileInput: document.querySelector("#audioFileInput"),
+  saveAudioCheckbox: document.querySelector("#saveAudioCheckbox"),
+  saveAudioHint: document.querySelector("#saveAudioHint"),
   recordButton: document.querySelector("#recordButton"),
   sampleButton: document.querySelector("#sampleButton"),
   processButton: document.querySelector("#processButton"),
@@ -34,6 +44,12 @@ const elements = {
   clearButton: document.querySelector("#clearButton"),
   refreshHistoryButton: document.querySelector("#refreshHistoryButton"),
   clearHistoryButton: document.querySelector("#clearHistoryButton"),
+  historySearchInput: document.querySelector("#historySearchInput"),
+  historyCategoryFilter: document.querySelector("#historyCategoryFilter"),
+  historyFavoriteFilter: document.querySelector("#historyFavoriteFilter"),
+  categoryForm: document.querySelector("#categoryForm"),
+  categoryNameInput: document.querySelector("#categoryNameInput"),
+  categoryColorInput: document.querySelector("#categoryColorInput"),
   hotwordForm: document.querySelector("#hotwordForm"),
   hotwordSource: document.querySelector("#hotwordSource"),
   hotwordTarget: document.querySelector("#hotwordTarget"),
@@ -54,6 +70,26 @@ const elements = {
   removedFillers: document.querySelector("#removedFillers"),
   elapsedSeconds: document.querySelector("#elapsedSeconds"),
   historyList: document.querySelector("#historyList"),
+  sessionDetailPanel: document.querySelector("#sessionDetailPanel"),
+  sessionDetailHeading: document.querySelector("#sessionDetailHeading"),
+  sessionDetailStatus: document.querySelector("#sessionDetailStatus"),
+  sessionDetailEmpty: document.querySelector("#sessionDetailEmpty"),
+  sessionDetailForm: document.querySelector("#sessionDetailForm"),
+  sessionTitleInput: document.querySelector("#sessionTitleInput"),
+  sessionCategorySelect: document.querySelector("#sessionCategorySelect"),
+  sessionSceneSelect: document.querySelector("#sessionSceneSelect"),
+  sessionFavoriteCheckbox: document.querySelector("#sessionFavoriteCheckbox"),
+  sessionRawText: document.querySelector("#sessionRawText"),
+  sessionProcessedText: document.querySelector("#sessionProcessedText"),
+  sessionAudioMeta: document.querySelector("#sessionAudioMeta"),
+  sessionAudioPlayer: document.querySelector("#sessionAudioPlayer"),
+  sessionAudioInput: document.querySelector("#sessionAudioInput"),
+  replaceSessionAudioButton: document.querySelector("#replaceSessionAudioButton"),
+  deleteSessionAudioButton: document.querySelector("#deleteSessionAudioButton"),
+  saveSessionButton: document.querySelector("#saveSessionButton"),
+  copySessionButton: document.querySelector("#copySessionButton"),
+  sendSessionToWorkbenchButton: document.querySelector("#sendSessionToWorkbenchButton"),
+  deleteSessionButton: document.querySelector("#deleteSessionButton"),
 };
 
 const sampleText =
@@ -63,6 +99,15 @@ const state = {
   startedAt: null,
   timerId: null,
   historyItems: [],
+  historyCategories: [],
+  historyFilters: {
+    categoryId: "",
+    favoriteOnly: false,
+    query: "",
+  },
+  historySearchTimer: null,
+  selectedSessionId: null,
+  pendingAudioAttachment: null,
   hotwordItems: [],
   asrProviders: [],
   streamSocket: null,
@@ -76,7 +121,7 @@ const providerFallbacks = {
     label: "浏览器 Web Speech API",
     enabled: true,
     supported_sources: ["microphone"],
-    supported_languages: ["zh_cn", "zh_en", "en_us", "ja_jp"],
+    supported_languages: ["zh_cn", "zh_en", "en_us"],
     supported_modes: ["realtime"],
   },
   xfyun_iat: {
@@ -108,8 +153,6 @@ const providerFallbacks = {
 const vendorProviders = {
   browser: ["browser"],
   xfyun: ["xfyun_iat", "xfyun_lfasr_large"],
-  baidu: [],
-  future: [],
 };
 
 const sourceLabels = {
@@ -124,7 +167,6 @@ const languageLabels = {
   en_us: "英语",
   ja_jp: "日语",
   dialect: "方言",
-  other: "其他 / 待扩展",
 };
 
 const modeLabels = {
@@ -150,8 +192,19 @@ const phaseLabels = {
   error: "异常",
 };
 
+const UNCATEGORIZED_CATEGORY_ID = "uncategorized";
+
 const wavRecorder = createWavRecorder();
 const pcmStreamRecorder = createPcmStreamRecorder();
+
+function setActiveView(viewName) {
+  for (const view of elements.views) {
+    view.classList.toggle("active", view.dataset.view === viewName);
+  }
+  for (const button of elements.navButtons) {
+    button.classList.toggle("active", button.dataset.viewTarget === viewName);
+  }
+}
 
 const speechController = createSpeechRecognitionController({
   onStart: () => {
@@ -292,12 +345,8 @@ function syncVendorOptions() {
     } else if (option.value === "xfyun") {
       option.disabled = !xfyunReady;
       option.textContent = xfyunReady ? "科大讯飞 API" : "科大讯飞 API（未配置）";
-    } else if (option.value === "baidu") {
-      option.disabled = true;
-      option.textContent = "百度 API（未配置）";
     } else {
       option.disabled = true;
-      option.textContent = "待扩展 API（未配置）";
     }
   }
 
@@ -367,6 +416,7 @@ async function handleRecognition() {
   const source = elements.sourceSelect.value;
 
   if (provider === "browser") {
+    clearPendingAudioAttachment();
     speechController.toggle(elements.languageSelect.value);
     return;
   }
@@ -393,6 +443,7 @@ async function handleRecognition() {
 }
 
 async function startIatStreamRecognition(source) {
+  clearPendingAudioAttachment();
   const url = createAsrStreamUrl({
     provider: elements.providerSelect.value,
     source,
@@ -422,6 +473,7 @@ async function startIatStreamRecognition(source) {
         }
       },
       onLevel: updateWaveform,
+      captureAudio: shouldSaveAudio(),
     });
     elements.processedText.value = "";
     elements.copyStatus.textContent = "未复制";
@@ -460,7 +512,10 @@ async function stopIatStreamRecognition() {
     level: 0,
   });
 
-  await pcmStreamRecorder.stop();
+  const recording = await pcmStreamRecorder.stop();
+  if (recording?.blob) {
+    setPendingAudioAttachment(recording.blob, recording.filename, recording.durationMs);
+  }
   if (state.streamSocket?.readyState === WebSocket.OPEN) {
     state.streamSocket.send("stop");
   }
@@ -535,7 +590,10 @@ function bindStreamSocket(socket) {
     const settled = ["done", "error"].includes(state.recognitionPhase);
     state.streamSocket = null;
     if (pcmStreamRecorder.isRecording()) {
-      await pcmStreamRecorder.stop();
+      const recording = await pcmStreamRecorder.stop();
+      if (recording?.blob) {
+        setPendingAudioAttachment(recording.blob, recording.filename, recording.durationMs);
+      }
     }
     stopElapsedTimer();
     elements.recordButton.classList.remove("recording");
@@ -604,6 +662,11 @@ async function stopApiRecordingAndTranscribe() {
       });
       return;
     }
+    if (shouldSaveAudio()) {
+      setPendingAudioAttachment(recording.blob, recording.filename, recording.durationMs);
+    } else {
+      clearPendingAudioAttachment();
+    }
     await uploadAndReplace(recording.blob, recording.filename);
   } finally {
     stopElapsedTimer();
@@ -637,6 +700,11 @@ async function transcribeSelectedFile() {
   });
 
   try {
+    if (shouldSaveAudio()) {
+      setPendingAudioAttachment(file, file.name, null);
+    } else {
+      clearPendingAudioAttachment();
+    }
     await uploadAndReplace(file, file.name);
   } finally {
     stopElapsedTimer();
@@ -678,6 +746,22 @@ async function uploadAndReplace(audioBlob, filename) {
   }
 }
 
+function shouldSaveAudio() {
+  return Boolean(elements.saveAudioCheckbox.checked);
+}
+
+function setPendingAudioAttachment(blob, filename, durationMs) {
+  state.pendingAudioAttachment = {
+    blob,
+    filename: filename || `smartdictate-${Date.now()}.wav`,
+    durationMs,
+  };
+}
+
+function clearPendingAudioAttachment() {
+  state.pendingAudioAttachment = null;
+}
+
 async function handleProcessText() {
   const rawText = elements.rawText.value.trim();
   if (!rawText) {
@@ -693,6 +777,14 @@ async function handleProcessText() {
       rawText,
       scene: elements.sceneSelect.value,
     });
+    if (state.pendingAudioAttachment) {
+      await uploadTranscriptAudio(item.id, {
+        audioBlob: state.pendingAudioAttachment.blob,
+        filename: state.pendingAudioAttachment.filename,
+        durationMs: state.pendingAudioAttachment.durationMs,
+      });
+      clearPendingAudioAttachment();
+    }
     elements.processedText.value = item.processed_text;
     renderMetrics(item.metrics);
     await loadHistory();
@@ -716,12 +808,14 @@ function handleClearText() {
   elements.copyStatus.textContent = "未复制";
   elements.removedFillers.textContent = "0";
   state.startedAt = null;
+  clearPendingAudioAttachment();
   stopElapsedTimer();
   resetRecognitionPhase("已清空当前文本。");
   updateMetrics();
 }
 
 function handleFillSample() {
+  clearPendingAudioAttachment();
   replaceRawText(sampleText);
   setRecognitionPhase("done", {
     status: "已填入示例",
@@ -746,18 +840,63 @@ function renderMetrics(metrics) {
 
 async function loadHistory() {
   try {
-    state.historyItems = await listTranscripts({ limit: 10 });
+    state.historyItems = await listTranscripts({
+      limit: 20,
+      categoryId: state.historyFilters.categoryId,
+      favorite: state.historyFilters.favoriteOnly ? true : null,
+      query: state.historyFilters.query,
+    });
     renderHistory(state.historyItems);
     setApiStatus(true);
   } catch {
-    elements.historyList.innerHTML = '<p class="history-time">启动后端后可查看历史记录。</p>';
+    elements.historyList.innerHTML = '<p class="history-empty">启动后端后可查看会话库。</p>';
     setApiStatus(false);
+  }
+}
+
+async function loadCategories() {
+  try {
+    state.historyCategories = await listTranscriptCategories();
+    renderCategoryFilters();
+    setApiStatus(true);
+  } catch {
+    state.historyCategories = [];
+    renderCategoryFilters();
+    setApiStatus(false);
+  }
+}
+
+async function loadSessionLibrary() {
+  await loadCategories();
+  await loadHistory();
+}
+
+function renderCategoryFilters() {
+  const currentValue = elements.historyCategoryFilter.value;
+  const options = [
+    '<option value="">全部分类</option>',
+    `<option value="${UNCATEGORIZED_CATEGORY_ID}">未分类</option>`,
+    ...state.historyCategories.map(
+      (category) => `<option value="${escapeHtml(category.id)}">${escapeHtml(category.name)}</option>`,
+    ),
+  ];
+  elements.historyCategoryFilter.innerHTML = options.join("");
+  const hasCurrentValue = Array.from(elements.historyCategoryFilter.options).some(
+    (option) => option.value === currentValue,
+  );
+  elements.historyCategoryFilter.value = hasCurrentValue ? currentValue : "";
+  state.historyFilters.categoryId = elements.historyCategoryFilter.value;
+  const selectedSession = getSelectedSession();
+  if (selectedSession && !elements.sessionDetailForm.classList.contains("hidden")) {
+    renderSessionCategoryOptions(selectedSession.category_id);
   }
 }
 
 function renderHistory(items) {
   if (!items.length) {
-    elements.historyList.innerHTML = '<p class="history-time">暂无记录。</p>';
+    elements.historyList.innerHTML = state.historyFilters.query
+      ? '<p class="history-empty">没有匹配的会话。</p>'
+      : '<p class="history-empty">暂无会话记录。</p>';
     return;
   }
 
@@ -771,22 +910,192 @@ function renderHistory(items) {
 }
 
 function renderHistoryItem(item) {
-  const time = new Date(item.created_at).toLocaleString();
+  const time = new Date(item.updated_at ?? item.created_at).toLocaleString();
+  const category = getCategory(item.category_id);
+  const categoryName = category?.name ?? "未分类";
+  const categoryColor = category?.color ?? "#94a3b8";
+  const favoriteClass = item.favorite ? " is-favorite" : "";
+  const favoriteLabel = item.favorite ? "取消收藏" : "收藏";
   return `
-    <article class="history-item">
+    <article class="history-item${favoriteClass}">
+      <div class="history-title-row">
+        <button
+          class="favorite-button"
+          type="button"
+          aria-pressed="${item.favorite ? "true" : "false"}"
+          title="${favoriteLabel}"
+          data-action="favorite"
+          data-history-id="${item.id}"
+        >${item.favorite ? "★" : "☆"}</button>
+        <div>
+          <strong>${escapeHtml(item.title ?? "未命名会话")}</strong>
+          <div class="history-meta">
+            <span class="category-chip" style="--category-color: ${categoryColor}">${escapeHtml(categoryName)}</span>
+            <span>${sceneLabel(item.scene)}</span>
+            <span>${time}</span>
+            <span>${item.metrics.processed_length} 字</span>
+          </div>
+        </div>
+      </div>
       <p class="history-text">${escapeHtml(item.processed_text)}</p>
       <div class="history-meta">
-        <span>${time}</span>
-        <span>${sceneLabel(item.scene)}</span>
-        <span>${item.metrics.processed_length} 字</span>
+        <span>原文 ${item.metrics.raw_length} 字</span>
+        <span>清理 ${item.metrics.removed_fillers} 处</span>
+        <span>${item.audio ? "有音频" : "无音频"}</span>
       </div>
       <div class="history-actions">
-        <button class="secondary-button" type="button" data-action="fill" data-history-id="${item.id}">填入</button>
+        <button class="secondary-button" type="button" data-action="open" data-history-id="${item.id}">打开</button>
         <button class="secondary-button" type="button" data-action="copy" data-history-id="${item.id}">复制</button>
         <button class="text-button danger-text" type="button" data-action="delete" data-history-id="${item.id}">删除</button>
       </div>
     </article>
   `;
+}
+
+function renderHistoryCategoryOptions(selectedCategoryId) {
+  const selected = selectedCategoryId ?? "";
+  const options = [
+    `<option value="" ${selected === "" ? "selected" : ""}>未分类</option>`,
+    ...state.historyCategories.map((category) => {
+      const isSelected = selected === category.id ? "selected" : "";
+      return `<option value="${escapeHtml(category.id)}" ${isSelected}>${escapeHtml(category.name)}</option>`;
+    }),
+  ];
+  return options.join("");
+}
+
+function getCategory(categoryId) {
+  if (!categoryId) {
+    return null;
+  }
+  return state.historyCategories.find((category) => category.id === categoryId) ?? null;
+}
+
+function openSessionDetail(item) {
+  state.selectedSessionId = item.id;
+  elements.sessionDetailEmpty.classList.add("hidden");
+  elements.sessionDetailForm.classList.remove("hidden");
+  elements.sessionDetailHeading.textContent = "会话详情";
+  elements.sessionDetailStatus.textContent = item.favorite ? "已收藏" : "可编辑";
+  elements.sessionTitleInput.value = item.title ?? "";
+  elements.sessionSceneSelect.value = item.scene;
+  elements.sessionFavoriteCheckbox.checked = Boolean(item.favorite);
+  elements.sessionRawText.value = item.raw_text;
+  elements.sessionProcessedText.value = item.processed_text;
+  renderSessionCategoryOptions(item.category_id);
+  renderSessionAudio(item);
+}
+
+function renderSessionCategoryOptions(selectedCategoryId) {
+  elements.sessionCategorySelect.innerHTML = renderHistoryCategoryOptions(selectedCategoryId);
+}
+
+function renderSessionAudio(item) {
+  if (!item.audio) {
+    elements.sessionAudioMeta.textContent = "未保存音频";
+    elements.sessionAudioPlayer.removeAttribute("src");
+    elements.sessionAudioPlayer.classList.add("hidden");
+    elements.deleteSessionAudioButton.disabled = true;
+    return;
+  }
+
+  const size = formatFileSize(item.audio.size_bytes);
+  const duration =
+    typeof item.audio.duration_ms === "number" ? ` · ${formatDuration(item.audio.duration_ms)}` : "";
+  elements.sessionAudioMeta.textContent = `${item.audio.filename} · ${size}${duration}`;
+  elements.sessionAudioPlayer.src = transcriptAudioUrl(item.id);
+  elements.sessionAudioPlayer.classList.remove("hidden");
+  elements.deleteSessionAudioButton.disabled = false;
+}
+
+function getSelectedSession() {
+  return state.historyItems.find((item) => item.id === state.selectedSessionId) ?? null;
+}
+
+async function handleSaveSession(event) {
+  event.preventDefault();
+  if (!state.selectedSessionId) {
+    return;
+  }
+
+  const updated = await updateTranscript(state.selectedSessionId, {
+    title: elements.sessionTitleInput.value.trim(),
+    raw_text: elements.sessionRawText.value,
+    processed_text: elements.sessionProcessedText.value,
+    scene: elements.sessionSceneSelect.value,
+    category_id: elements.sessionCategorySelect.value || null,
+    favorite: elements.sessionFavoriteCheckbox.checked,
+  });
+  await loadHistory();
+  openSessionDetail(updated);
+  elements.sessionDetailStatus.textContent = "已保存";
+}
+
+async function handleReplaceSessionAudio() {
+  const file = elements.sessionAudioInput.files?.[0];
+  if (!state.selectedSessionId || !file) {
+    return;
+  }
+
+  const updated = await uploadTranscriptAudio(state.selectedSessionId, {
+    audioBlob: file,
+    filename: file.name,
+    durationMs: null,
+  });
+  elements.sessionAudioInput.value = "";
+  await loadHistory();
+  openSessionDetail(updated);
+}
+
+async function handleDeleteSessionAudio() {
+  if (!state.selectedSessionId) {
+    return;
+  }
+  await deleteTranscriptAudio(state.selectedSessionId);
+  await loadHistory();
+  const item = state.historyItems.find((entry) => entry.id === state.selectedSessionId);
+  if (item) {
+    openSessionDetail(item);
+  }
+}
+
+async function handleDeleteSelectedSession() {
+  if (!state.selectedSessionId) {
+    return;
+  }
+  const confirmed = window.confirm("确定要删除当前会话吗？此操作不可撤销。");
+  if (!confirmed) {
+    return;
+  }
+  await deleteTranscript(state.selectedSessionId);
+  state.selectedSessionId = null;
+  elements.sessionDetailForm.classList.add("hidden");
+  elements.sessionDetailEmpty.classList.remove("hidden");
+  elements.sessionDetailStatus.textContent = "已删除";
+  await loadHistory();
+}
+
+function handleSendSessionToWorkbench() {
+  const item = getSelectedSession();
+  if (!item) {
+    return;
+  }
+  elements.rawText.value = elements.sessionRawText.value;
+  elements.processedText.value = elements.sessionProcessedText.value;
+  elements.sceneSelect.value = elements.sessionSceneSelect.value;
+  renderMetrics({
+    raw_length: elements.sessionRawText.value.length,
+    processed_length: elements.sessionProcessedText.value.length,
+    removed_fillers: item.metrics.removed_fillers,
+  });
+  setRecognitionPhase("done", {
+    status: "已发送到工作台",
+    source: "idle",
+    transport: "会话库",
+    detail: elements.sessionTitleInput.value,
+    level: 0,
+  });
+  setActiveView("workbench");
 }
 
 async function handleHistoryAction(action, id) {
@@ -795,9 +1104,9 @@ async function handleHistoryAction(action, id) {
     return;
   }
 
-  if (action === "fill") {
-    elements.processedText.value = item.processed_text;
-    updateMetrics();
+  if (action === "open") {
+    openSessionDetail(item);
+    setActiveView("sessions");
     return;
   }
 
@@ -806,8 +1115,35 @@ async function handleHistoryAction(action, id) {
     return;
   }
 
+  if (action === "favorite") {
+    await updateTranscript(id, { favorite: !item.favorite });
+    await loadHistory();
+    return;
+  }
+
+  if (action === "rename") {
+    const title = window.prompt("请输入会话标题", item.title ?? "");
+    if (title === null) {
+      return;
+    }
+    const normalizedTitle = title.trim();
+    if (!normalizedTitle) {
+      window.alert("会话标题不能为空。");
+      return;
+    }
+    await updateTranscript(id, { title: normalizedTitle });
+    await loadHistory();
+    return;
+  }
+
   if (action === "delete") {
     await deleteTranscript(id);
+    if (state.selectedSessionId === id) {
+      state.selectedSessionId = null;
+      elements.sessionDetailForm.classList.add("hidden");
+      elements.sessionDetailEmpty.classList.remove("hidden");
+      elements.sessionDetailStatus.textContent = "已删除";
+    }
     await loadHistory();
   }
 }
@@ -823,7 +1159,44 @@ async function handleClearHistory() {
   }
 
   await clearTranscripts();
+  state.selectedSessionId = null;
+  elements.sessionDetailForm.classList.add("hidden");
+  elements.sessionDetailEmpty.classList.remove("hidden");
+  elements.sessionDetailStatus.textContent = "已清空";
   await loadHistory();
+}
+
+async function handleAddCategory(event) {
+  event.preventDefault();
+  const name = elements.categoryNameInput.value.trim();
+  if (!name) {
+    return;
+  }
+
+  try {
+    await createTranscriptCategory({
+      name,
+      color: elements.categoryColorInput.value,
+    });
+    elements.categoryNameInput.value = "";
+    await loadSessionLibrary();
+  } catch (error) {
+    window.alert(error.message);
+  }
+}
+
+function handleHistoryFilterChange() {
+  state.historyFilters.categoryId = elements.historyCategoryFilter.value;
+  state.historyFilters.favoriteOnly = elements.historyFavoriteFilter.checked;
+  loadHistory();
+}
+
+function handleHistorySearchInput() {
+  window.clearTimeout(state.historySearchTimer);
+  state.historySearchTimer = window.setTimeout(() => {
+    state.historyFilters.query = elements.historySearchInput.value.trim();
+    loadHistory();
+  }, 180);
 }
 
 async function loadHotwords() {
@@ -921,6 +1294,23 @@ function sceneLabel(scene) {
   return labels[scene] ?? scene;
 }
 
+function formatFileSize(bytes) {
+  if (!bytes) {
+    return "0 KB";
+  }
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function formatDuration(durationMs) {
+  const seconds = Math.max(0, Math.round(durationMs / 1000));
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return minutes ? `${minutes}m ${rest}s` : `${rest}s`;
+}
+
 function providerLabel(provider) {
   return getProviderInfo(provider).label;
 }
@@ -958,6 +1348,14 @@ function syncRecognitionControls() {
   elements.modeSelect.disabled = browserMode || supportedModes.length <= 1;
   elements.languageSelect.disabled = supportedLanguages.length <= 1;
   elements.fileField.classList.toggle("hidden", !fileMode);
+  elements.saveAudioCheckbox.disabled = browserMode;
+  elements.saveAudioHint.textContent = browserMode
+    ? "浏览器 Web Speech 不提供音频文件，因此只能保存文本会话。"
+    : "开启后，下一次整理文本会把本次音频一起归档到会话库。";
+  if (browserMode) {
+    elements.saveAudioCheckbox.checked = false;
+    clearPendingAudioAttachment();
+  }
 
   if (browserMode) {
     elements.recordButton.textContent = "开始识别";
@@ -981,6 +1379,9 @@ function syncRecognitionControls() {
 }
 
 function setupEventListeners() {
+  for (const button of elements.navButtons) {
+    button.addEventListener("click", () => setActiveView(button.dataset.viewTarget));
+  }
   elements.recordButton.addEventListener("click", handleRecognition);
   elements.sampleButton.addEventListener("click", handleFillSample);
   elements.processButton.addEventListener("click", handleProcessText);
@@ -988,6 +1389,18 @@ function setupEventListeners() {
   elements.clearButton.addEventListener("click", handleClearText);
   elements.refreshHistoryButton.addEventListener("click", loadHistory);
   elements.clearHistoryButton.addEventListener("click", handleClearHistory);
+  elements.historyCategoryFilter.addEventListener("change", handleHistoryFilterChange);
+  elements.historyFavoriteFilter.addEventListener("change", handleHistoryFilterChange);
+  elements.historySearchInput.addEventListener("input", handleHistorySearchInput);
+  elements.categoryForm.addEventListener("submit", handleAddCategory);
+  elements.sessionDetailForm.addEventListener("submit", handleSaveSession);
+  elements.replaceSessionAudioButton.addEventListener("click", handleReplaceSessionAudio);
+  elements.deleteSessionAudioButton.addEventListener("click", handleDeleteSessionAudio);
+  elements.copySessionButton.addEventListener("click", () =>
+    copyText(elements.sessionProcessedText.value.trim(), elements.sessionDetailStatus),
+  );
+  elements.sendSessionToWorkbenchButton.addEventListener("click", handleSendSessionToWorkbench);
+  elements.deleteSessionButton.addEventListener("click", handleDeleteSelectedSession);
   elements.hotwordForm.addEventListener("submit", handleAddHotword);
   elements.rawText.addEventListener("input", updateMetrics);
   elements.processedText.addEventListener("input", updateMetrics);
@@ -1038,4 +1451,4 @@ syncRecognitionControls();
 refreshApiStatus();
 loadAsrProviders();
 loadHotwords();
-loadHistory();
+loadSessionLibrary();
