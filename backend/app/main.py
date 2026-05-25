@@ -26,7 +26,11 @@ from backend.app.models import (
     HotwordCreateRequest,
     HotwordItem,
     ProcessTranscriptRequest,
+    TranscriptCategory,
+    TranscriptCategoryCreateRequest,
+    TranscriptCategoryUpdateRequest,
     TranscriptItem,
+    TranscriptMetadataUpdateRequest,
 )
 from backend.app.services.hotwords import HotwordDictionary
 from backend.app.services.text_processor import TextProcessor
@@ -202,9 +206,82 @@ def process_transcript(payload: ProcessTranscriptRequest) -> TranscriptItem:
     return item
 
 
+@app.get("/api/transcript-categories", response_model=list[TranscriptCategory])
+def list_transcript_categories() -> list[TranscriptCategory]:
+    return store.list_categories()
+
+
+@app.post(
+    "/api/transcript-categories",
+    response_model=TranscriptCategory,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_transcript_category(
+    payload: TranscriptCategoryCreateRequest,
+) -> TranscriptCategory:
+    try:
+        return store.create_category(payload.name, payload.color)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@app.patch(
+    "/api/transcript-categories/{category_id}",
+    response_model=TranscriptCategory,
+)
+def update_transcript_category(
+    category_id: str,
+    payload: TranscriptCategoryUpdateRequest,
+) -> TranscriptCategory:
+    try:
+        item = store.update_category(category_id, payload.model_dump(exclude_unset=True))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="分类不存在")
+    return item
+
+
+@app.delete(
+    "/api/transcript-categories/{category_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_transcript_category(category_id: str, response: Response) -> None:
+    try:
+        deleted = store.delete_category(category_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    if not deleted:
+        response.status_code = status.HTTP_404_NOT_FOUND
+
+
 @app.get("/api/transcripts", response_model=list[TranscriptItem])
-def list_transcripts(limit: int = Query(default=10, ge=1, le=30)) -> list[TranscriptItem]:
-    return store.list_recent(limit=limit)
+def list_transcripts(
+    limit: int = Query(default=20, ge=1, le=100),
+    category_id: str | None = Query(default=None),
+    favorite: bool | None = Query(default=None),
+    query: str | None = Query(default=None, max_length=80),
+) -> list[TranscriptItem]:
+    return store.list_recent(
+        limit=limit,
+        category_id=category_id,
+        favorite=favorite,
+        query=query,
+    )
+
+
+@app.patch("/api/transcripts/{transcript_id}", response_model=TranscriptItem)
+def update_transcript_metadata(
+    transcript_id: str,
+    payload: TranscriptMetadataUpdateRequest,
+) -> TranscriptItem:
+    try:
+        item = store.update_metadata(transcript_id, payload.model_dump(exclude_unset=True))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="历史记录不存在")
+    return item
 
 
 @app.delete("/api/transcripts/{transcript_id}", status_code=status.HTTP_204_NO_CONTENT)

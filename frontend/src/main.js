@@ -1,15 +1,18 @@
 import {
   checkHealth,
   clearTranscripts,
+  createTranscriptCategory,
   createHotword,
   createAsrStreamUrl,
   deleteHotword,
   deleteTranscript,
   listAsrProviders,
   listHotwords,
+  listTranscriptCategories,
   listTranscripts,
   processTranscript,
   transcribeAudio,
+  updateTranscript,
 } from "./modules/api-client.js";
 import { createPcmStreamRecorder, createWavRecorder } from "./modules/audio-recorder.js";
 import { escapeHtml } from "./modules/html.js";
@@ -34,6 +37,12 @@ const elements = {
   clearButton: document.querySelector("#clearButton"),
   refreshHistoryButton: document.querySelector("#refreshHistoryButton"),
   clearHistoryButton: document.querySelector("#clearHistoryButton"),
+  historySearchInput: document.querySelector("#historySearchInput"),
+  historyCategoryFilter: document.querySelector("#historyCategoryFilter"),
+  historyFavoriteFilter: document.querySelector("#historyFavoriteFilter"),
+  categoryForm: document.querySelector("#categoryForm"),
+  categoryNameInput: document.querySelector("#categoryNameInput"),
+  categoryColorInput: document.querySelector("#categoryColorInput"),
   hotwordForm: document.querySelector("#hotwordForm"),
   hotwordSource: document.querySelector("#hotwordSource"),
   hotwordTarget: document.querySelector("#hotwordTarget"),
@@ -63,6 +72,13 @@ const state = {
   startedAt: null,
   timerId: null,
   historyItems: [],
+  historyCategories: [],
+  historyFilters: {
+    categoryId: "",
+    favoriteOnly: false,
+    query: "",
+  },
+  historySearchTimer: null,
   hotwordItems: [],
   asrProviders: [],
   streamSocket: null,
@@ -149,6 +165,8 @@ const phaseLabels = {
   done: "已完成",
   error: "异常",
 };
+
+const UNCATEGORIZED_CATEGORY_ID = "uncategorized";
 
 const wavRecorder = createWavRecorder();
 const pcmStreamRecorder = createPcmStreamRecorder();
@@ -746,18 +764,59 @@ function renderMetrics(metrics) {
 
 async function loadHistory() {
   try {
-    state.historyItems = await listTranscripts({ limit: 10 });
+    state.historyItems = await listTranscripts({
+      limit: 20,
+      categoryId: state.historyFilters.categoryId,
+      favorite: state.historyFilters.favoriteOnly ? true : null,
+      query: state.historyFilters.query,
+    });
     renderHistory(state.historyItems);
     setApiStatus(true);
   } catch {
-    elements.historyList.innerHTML = '<p class="history-time">启动后端后可查看历史记录。</p>';
+    elements.historyList.innerHTML = '<p class="history-empty">启动后端后可查看会话库。</p>';
     setApiStatus(false);
   }
 }
 
+async function loadCategories() {
+  try {
+    state.historyCategories = await listTranscriptCategories();
+    renderCategoryFilters();
+    setApiStatus(true);
+  } catch {
+    state.historyCategories = [];
+    renderCategoryFilters();
+    setApiStatus(false);
+  }
+}
+
+async function loadSessionLibrary() {
+  await loadCategories();
+  await loadHistory();
+}
+
+function renderCategoryFilters() {
+  const currentValue = elements.historyCategoryFilter.value;
+  const options = [
+    '<option value="">全部分类</option>',
+    `<option value="${UNCATEGORIZED_CATEGORY_ID}">未分类</option>`,
+    ...state.historyCategories.map(
+      (category) => `<option value="${escapeHtml(category.id)}">${escapeHtml(category.name)}</option>`,
+    ),
+  ];
+  elements.historyCategoryFilter.innerHTML = options.join("");
+  const hasCurrentValue = Array.from(elements.historyCategoryFilter.options).some(
+    (option) => option.value === currentValue,
+  );
+  elements.historyCategoryFilter.value = hasCurrentValue ? currentValue : "";
+  state.historyFilters.categoryId = elements.historyCategoryFilter.value;
+}
+
 function renderHistory(items) {
   if (!items.length) {
-    elements.historyList.innerHTML = '<p class="history-time">暂无记录。</p>';
+    elements.historyList.innerHTML = state.historyFilters.query
+      ? '<p class="history-empty">没有匹配的会话。</p>'
+      : '<p class="history-empty">暂无会话记录。</p>';
     return;
   }
 
@@ -768,25 +827,78 @@ function renderHistory(items) {
       handleHistoryAction(button.dataset.action, button.dataset.historyId);
     });
   }
+  for (const select of elements.historyList.querySelectorAll("select[data-action='category']")) {
+    select.addEventListener("change", () => {
+      handleHistoryCategoryChange(select.dataset.historyId, select.value);
+    });
+  }
 }
 
 function renderHistoryItem(item) {
-  const time = new Date(item.created_at).toLocaleString();
+  const time = new Date(item.updated_at ?? item.created_at).toLocaleString();
+  const category = getCategory(item.category_id);
+  const categoryName = category?.name ?? "未分类";
+  const categoryColor = category?.color ?? "#94a3b8";
+  const favoriteClass = item.favorite ? " is-favorite" : "";
+  const favoriteLabel = item.favorite ? "取消收藏" : "收藏";
   return `
-    <article class="history-item">
+    <article class="history-item${favoriteClass}">
+      <div class="history-title-row">
+        <button
+          class="favorite-button"
+          type="button"
+          aria-pressed="${item.favorite ? "true" : "false"}"
+          title="${favoriteLabel}"
+          data-action="favorite"
+          data-history-id="${item.id}"
+        >${item.favorite ? "★" : "☆"}</button>
+        <div>
+          <strong>${escapeHtml(item.title ?? "未命名会话")}</strong>
+          <div class="history-meta">
+            <span class="category-chip" style="--category-color: ${categoryColor}">${escapeHtml(categoryName)}</span>
+            <span>${sceneLabel(item.scene)}</span>
+            <span>${time}</span>
+            <span>${item.metrics.processed_length} 字</span>
+          </div>
+        </div>
+      </div>
       <p class="history-text">${escapeHtml(item.processed_text)}</p>
+      <div class="history-edit-row">
+        <select data-action="category" data-history-id="${item.id}" aria-label="会话分类">
+          ${renderHistoryCategoryOptions(item.category_id)}
+        </select>
+        <button class="text-button" type="button" data-action="rename" data-history-id="${item.id}">重命名</button>
+      </div>
       <div class="history-meta">
-        <span>${time}</span>
-        <span>${sceneLabel(item.scene)}</span>
-        <span>${item.metrics.processed_length} 字</span>
+        <span>原文 ${item.metrics.raw_length} 字</span>
+        <span>清理 ${item.metrics.removed_fillers} 处</span>
       </div>
       <div class="history-actions">
-        <button class="secondary-button" type="button" data-action="fill" data-history-id="${item.id}">填入</button>
+        <button class="secondary-button" type="button" data-action="open" data-history-id="${item.id}">打开</button>
         <button class="secondary-button" type="button" data-action="copy" data-history-id="${item.id}">复制</button>
         <button class="text-button danger-text" type="button" data-action="delete" data-history-id="${item.id}">删除</button>
       </div>
     </article>
   `;
+}
+
+function renderHistoryCategoryOptions(selectedCategoryId) {
+  const selected = selectedCategoryId ?? "";
+  const options = [
+    `<option value="" ${selected === "" ? "selected" : ""}>未分类</option>`,
+    ...state.historyCategories.map((category) => {
+      const isSelected = selected === category.id ? "selected" : "";
+      return `<option value="${escapeHtml(category.id)}" ${isSelected}>${escapeHtml(category.name)}</option>`;
+    }),
+  ];
+  return options.join("");
+}
+
+function getCategory(categoryId) {
+  if (!categoryId) {
+    return null;
+  }
+  return state.historyCategories.find((category) => category.id === categoryId) ?? null;
 }
 
 async function handleHistoryAction(action, id) {
@@ -795,9 +907,18 @@ async function handleHistoryAction(action, id) {
     return;
   }
 
-  if (action === "fill") {
+  if (action === "open") {
+    elements.rawText.value = item.raw_text;
     elements.processedText.value = item.processed_text;
-    updateMetrics();
+    elements.sceneSelect.value = item.scene;
+    renderMetrics(item.metrics);
+    setRecognitionPhase("done", {
+      status: "已打开会话",
+      source: "idle",
+      transport: "会话库",
+      detail: item.title,
+      level: 0,
+    });
     return;
   }
 
@@ -806,10 +927,36 @@ async function handleHistoryAction(action, id) {
     return;
   }
 
+  if (action === "favorite") {
+    await updateTranscript(id, { favorite: !item.favorite });
+    await loadHistory();
+    return;
+  }
+
+  if (action === "rename") {
+    const title = window.prompt("请输入会话标题", item.title ?? "");
+    if (title === null) {
+      return;
+    }
+    const normalizedTitle = title.trim();
+    if (!normalizedTitle) {
+      window.alert("会话标题不能为空。");
+      return;
+    }
+    await updateTranscript(id, { title: normalizedTitle });
+    await loadHistory();
+    return;
+  }
+
   if (action === "delete") {
     await deleteTranscript(id);
     await loadHistory();
   }
+}
+
+async function handleHistoryCategoryChange(id, categoryId) {
+  await updateTranscript(id, { category_id: categoryId || null });
+  await loadHistory();
 }
 
 async function handleClearHistory() {
@@ -824,6 +971,39 @@ async function handleClearHistory() {
 
   await clearTranscripts();
   await loadHistory();
+}
+
+async function handleAddCategory(event) {
+  event.preventDefault();
+  const name = elements.categoryNameInput.value.trim();
+  if (!name) {
+    return;
+  }
+
+  try {
+    await createTranscriptCategory({
+      name,
+      color: elements.categoryColorInput.value,
+    });
+    elements.categoryNameInput.value = "";
+    await loadSessionLibrary();
+  } catch (error) {
+    window.alert(error.message);
+  }
+}
+
+function handleHistoryFilterChange() {
+  state.historyFilters.categoryId = elements.historyCategoryFilter.value;
+  state.historyFilters.favoriteOnly = elements.historyFavoriteFilter.checked;
+  loadHistory();
+}
+
+function handleHistorySearchInput() {
+  window.clearTimeout(state.historySearchTimer);
+  state.historySearchTimer = window.setTimeout(() => {
+    state.historyFilters.query = elements.historySearchInput.value.trim();
+    loadHistory();
+  }, 180);
 }
 
 async function loadHotwords() {
@@ -988,6 +1168,10 @@ function setupEventListeners() {
   elements.clearButton.addEventListener("click", handleClearText);
   elements.refreshHistoryButton.addEventListener("click", loadHistory);
   elements.clearHistoryButton.addEventListener("click", handleClearHistory);
+  elements.historyCategoryFilter.addEventListener("change", handleHistoryFilterChange);
+  elements.historyFavoriteFilter.addEventListener("change", handleHistoryFilterChange);
+  elements.historySearchInput.addEventListener("input", handleHistorySearchInput);
+  elements.categoryForm.addEventListener("submit", handleAddCategory);
   elements.hotwordForm.addEventListener("submit", handleAddHotword);
   elements.rawText.addEventListener("input", updateMetrics);
   elements.processedText.addEventListener("input", updateMetrics);
@@ -1038,4 +1222,4 @@ syncRecognitionControls();
 refreshApiStatus();
 loadAsrProviders();
 loadHotwords();
-loadHistory();
+loadSessionLibrary();

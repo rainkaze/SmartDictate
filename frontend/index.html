@@ -183,12 +183,28 @@
 
         <section class="history-panel">
           <div class="pane-header">
-            <h2>最近记录</h2>
+            <h2>会话库</h2>
             <div class="history-toolbar">
               <button class="text-button" id="refreshHistoryButton" type="button">刷新</button>
               <button class="text-button danger-text" id="clearHistoryButton" type="button">清空</button>
             </div>
           </div>
+          <div class="history-controls" aria-label="会话筛选">
+            <input id="historySearchInput" maxlength="80" placeholder="搜索标题或内容" />
+            <select id="historyCategoryFilter">
+              <option value="">全部分类</option>
+              <option value="uncategorized">未分类</option>
+            </select>
+            <label class="checkbox-field">
+              <input id="historyFavoriteFilter" type="checkbox" />
+              <span>只看收藏</span>
+            </label>
+          </div>
+          <form class="category-form" id="categoryForm">
+            <input id="categoryNameInput" maxlength="24" placeholder="新建分类，例如 面试" />
+            <input id="categoryColorInput" type="color" value="#0f766e" aria-label="分类颜色" />
+            <button class="secondary-button" type="submit">添加</button>
+          </form>
           <div id="historyList" class="history-list"></div>
         </section>
       </aside>
