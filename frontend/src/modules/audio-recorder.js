@@ -100,6 +100,8 @@ export function createPcmStreamRecorder() {
   let muteNode = null;
   let mediaStream = null;
   let startedAt = null;
+  let capturedChunks = [];
+  let captureAudio = false;
 
   async function start(source, handlersOrOnChunk) {
     const handlers =
@@ -107,6 +109,8 @@ export function createPcmStreamRecorder() {
 
     stopTracks();
     startedAt = Date.now();
+    capturedChunks = [];
+    captureAudio = Boolean(handlers?.captureAudio);
 
     mediaStream =
       source === "system"
@@ -136,6 +140,9 @@ export function createPcmStreamRecorder() {
       const samples = new Float32Array(event.inputBuffer.getChannelData(0));
       handlers?.onLevel?.(calculateLevel(samples));
       const resampled = resample(samples, audioContext.sampleRate, TARGET_SAMPLE_RATE);
+      if (captureAudio) {
+        capturedChunks.push(resampled);
+      }
       const pcm = encodePcm16(resampled);
       if (pcm.byteLength > 0) {
         handlers?.onChunk?.(pcm);
@@ -164,8 +171,15 @@ export function createPcmStreamRecorder() {
     muteNode = null;
 
     const durationMs = startedAt ? Date.now() - startedAt : 0;
+    const blob = captureAudio ? encodeWav(mergeChunks(capturedChunks), TARGET_SAMPLE_RATE) : null;
     startedAt = null;
-    return { durationMs };
+    capturedChunks = [];
+    captureAudio = false;
+    return {
+      durationMs,
+      blob,
+      filename: blob ? `smartdictate-stream-${Date.now()}.wav` : null,
+    };
   }
 
   function isRecording() {
