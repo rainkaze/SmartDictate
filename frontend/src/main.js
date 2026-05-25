@@ -121,7 +121,7 @@ const providerFallbacks = {
     label: "浏览器 Web Speech API",
     enabled: true,
     supported_sources: ["microphone"],
-    supported_languages: ["zh_cn", "zh_en", "en_us", "ja_jp"],
+    supported_languages: ["zh_cn", "zh_en", "en_us"],
     supported_modes: ["realtime"],
   },
   xfyun_iat: {
@@ -153,8 +153,6 @@ const providerFallbacks = {
 const vendorProviders = {
   browser: ["browser"],
   xfyun: ["xfyun_iat", "xfyun_lfasr_large"],
-  baidu: [],
-  future: [],
 };
 
 const sourceLabels = {
@@ -169,7 +167,6 @@ const languageLabels = {
   en_us: "英语",
   ja_jp: "日语",
   dialect: "方言",
-  other: "其他 / 待扩展",
 };
 
 const modeLabels = {
@@ -348,12 +345,8 @@ function syncVendorOptions() {
     } else if (option.value === "xfyun") {
       option.disabled = !xfyunReady;
       option.textContent = xfyunReady ? "科大讯飞 API" : "科大讯飞 API（未配置）";
-    } else if (option.value === "baidu") {
-      option.disabled = true;
-      option.textContent = "百度 API（未配置）";
     } else {
       option.disabled = true;
-      option.textContent = "待扩展 API（未配置）";
     }
   }
 

@@ -18,6 +18,14 @@ def test_process_applies_scene_prefix() -> None:
     assert result.text == "会议纪要：今天讨论项目进度。"
 
 
+def test_process_formats_message_scene() -> None:
+    processor = TextProcessor()
+
+    result = processor.process("好的 我 稍后 发你 文档", "message")
+
+    assert result.text == "回复：好的我稍后发你文档。"
+
+
 def test_process_keeps_existing_punctuation_readable() -> None:
     processor = TextProcessor()
 
