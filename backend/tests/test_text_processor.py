@@ -10,20 +10,20 @@ def test_process_removes_fillers_and_adds_punctuation() -> None:
     assert result.metrics.removed_fillers == 1
 
 
-def test_process_applies_scene_prefix() -> None:
+def test_process_does_not_add_scene_prefixes() -> None:
     processor = TextProcessor()
 
     result = processor.process("今天 讨论 项目 进度", "meeting")
 
-    assert result.text == "会议纪要：今天讨论项目进度。"
+    assert result.text == "今天讨论项目进度。"
 
 
-def test_process_formats_message_scene() -> None:
+def test_process_keeps_message_scene_as_plain_cleanup() -> None:
     processor = TextProcessor()
 
     result = processor.process("好的 我 稍后 发你 文档", "message")
 
-    assert result.text == "回复：好的我稍后发你文档。"
+    assert result.text == "好的我稍后发你文档。"
 
 
 def test_process_keeps_existing_punctuation_readable() -> None:
@@ -39,7 +39,7 @@ def test_process_applies_english_hotwords_case_insensitively() -> None:
 
     result = processor.process("github read me fast api", "code_note")
 
-    assert result.text == "代码说明：GitHub README FastAPI。"
+    assert result.text == "GitHub README FastAPI。"
 
 
 def test_process_inserts_light_pause_before_connector_words() -> None:

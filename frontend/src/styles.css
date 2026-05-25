@@ -820,7 +820,7 @@ textarea {
 
 .detail-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(160px, 0.65fr) minmax(160px, 0.65fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.55fr) auto;
   align-items: end;
   gap: 12px;
 }

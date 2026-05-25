@@ -46,7 +46,6 @@ class BaiduProvider(AsrProvider):
                 supported_sources=[AudioSource.MICROPHONE, AudioSource.SYSTEM],
                 supported_languages=[
                     AudioLanguage.ZH_CN,
-                    AudioLanguage.ZH_EN,
                     AudioLanguage.EN_US,
                     AudioLanguage.DIALECT,
                 ],
@@ -66,7 +65,6 @@ class BaiduProvider(AsrProvider):
             supported_sources=[AudioSource.MICROPHONE, AudioSource.FILE, AudioSource.SYSTEM],
             supported_languages=[
                 AudioLanguage.ZH_CN,
-                AudioLanguage.ZH_EN,
                 AudioLanguage.EN_US,
                 AudioLanguage.DIALECT,
             ],

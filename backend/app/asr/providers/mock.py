@@ -21,7 +21,11 @@ class BrowserProvider(AsrProvider):
             enabled=True,
             description="使用浏览器 Web Speech API，免费、低配置，但专业术语准确率有限。",
             supported_sources=[AudioSource.MICROPHONE],
-            supported_languages=[AudioLanguage.ZH_CN, AudioLanguage.ZH_EN, AudioLanguage.EN_US],
+            supported_languages=[
+                AudioLanguage.ZH_CN,
+                AudioLanguage.EN_US,
+                AudioLanguage.JA_JP,
+            ],
             supported_modes=[RecognitionMode.REALTIME],
         )
 

@@ -46,7 +46,6 @@ class XfyunProvider(AsrProvider):
                 supported_sources=[AudioSource.MICROPHONE, AudioSource.SYSTEM],
                 supported_languages=[
                     AudioLanguage.ZH_CN,
-                    AudioLanguage.ZH_EN,
                     AudioLanguage.EN_US,
                     AudioLanguage.JA_JP,
                     AudioLanguage.DIALECT,
@@ -466,11 +465,12 @@ def _extract_json_1best_text(json_1best: str) -> str:
 
 
 def _large_file_language(language: AudioLanguage) -> str:
-    if language == AudioLanguage.ZH_EN:
-        return "autodialect"
-    if language == AudioLanguage.DIALECT:
-        return "autodialect"
-    return "zh_cn"
+    # if language == AudioLanguage.ZH_EN:
+    #     return "autodialect"
+    # if language == AudioLanguage.DIALECT:
+    #     return "autodialect"
+    # return "zh_cn"
+    return "autodialect"
 
 
 def _xfyun_datetime() -> str:

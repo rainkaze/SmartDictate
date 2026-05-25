@@ -27,7 +27,6 @@ const elements = {
   apiStatus: document.querySelector("#apiStatus"),
   navButtons: Array.from(document.querySelectorAll("[data-view-target]")),
   views: Array.from(document.querySelectorAll("[data-view]")),
-  sceneSelect: document.querySelector("#sceneSelect"),
   vendorSelect: document.querySelector("#vendorSelect"),
   apiField: document.querySelector("#apiField"),
   providerSelect: document.querySelector("#providerSelect"),
@@ -82,7 +81,6 @@ const elements = {
   sessionUpdatedTime: document.querySelector("#sessionUpdatedTime"),
   sessionTitleInput: document.querySelector("#sessionTitleInput"),
   sessionCategorySelect: document.querySelector("#sessionCategorySelect"),
-  sessionSceneSelect: document.querySelector("#sessionSceneSelect"),
   sessionFavoriteCheckbox: document.querySelector("#sessionFavoriteCheckbox"),
   sessionRawText: document.querySelector("#sessionRawText"),
   sessionProcessedText: document.querySelector("#sessionProcessedText"),
@@ -126,7 +124,7 @@ const providerFallbacks = {
     label: "浏览器 Web Speech API",
     enabled: true,
     supported_sources: ["microphone"],
-    supported_languages: ["zh_cn", "zh_en", "en_us"],
+    supported_languages: ["zh_cn", "en_us", "ja_jp"],
     supported_modes: ["realtime"],
   },
   xfyun_iat: {
@@ -134,7 +132,7 @@ const providerFallbacks = {
     label: "语音听写 IAT",
     enabled: false,
     supported_sources: ["microphone", "system"],
-    supported_languages: ["zh_cn", "zh_en", "en_us", "ja_jp", "dialect"],
+    supported_languages: ["zh_cn", "en_us", "ja_jp", "dialect"],
     supported_modes: ["realtime"],
   },
   xfyun_lfasr_large: {
@@ -142,7 +140,7 @@ const providerFallbacks = {
     label: "录音文件转写大模型",
     enabled: false,
     supported_sources: ["microphone", "file", "system"],
-    supported_languages: ["zh_cn", "zh_en"],
+    supported_languages: ["zh_cn", "dialect"],
     supported_modes: ["long"],
   },
   baidu_short: {
@@ -150,7 +148,7 @@ const providerFallbacks = {
     label: "百度短语音识别",
     enabled: false,
     supported_sources: ["microphone", "file", "system"],
-    supported_languages: ["zh_cn", "zh_en", "en_us", "dialect"],
+    supported_languages: ["zh_cn", "en_us", "dialect"],
     supported_modes: ["short"],
   },
   baidu_realtime: {
@@ -158,7 +156,7 @@ const providerFallbacks = {
     label: "百度实时语音识别",
     enabled: false,
     supported_sources: ["microphone", "system"],
-    supported_languages: ["zh_cn", "zh_en", "en_us", "dialect"],
+    supported_languages: ["zh_cn", "en_us", "dialect"],
     supported_modes: ["realtime"],
   },
   future: {
@@ -184,7 +182,6 @@ const sourceLabels = {
 };
 
 const languageLabels = {
-  zh_en: "中英混合",
   zh_cn: "中文普通话",
   en_us: "英语",
   ja_jp: "日语",
@@ -804,7 +801,7 @@ async function handleProcessText() {
   try {
     const item = await processTranscript({
       rawText,
-      scene: elements.sceneSelect.value,
+      scene: "general",
     });
     if (state.pendingAudioAttachment) {
       await uploadTranscriptAudio(item.id, {
@@ -992,7 +989,6 @@ function renderHistoryItem(item) {
           <strong>${escapeHtml(title)}</strong>
           <div class="history-meta">
             <span class="category-chip" style="--category-color: ${categoryColor}">${escapeHtml(categoryName)}</span>
-            <span>${sceneLabel(item.scene)}</span>
             <span>${time}</span>
           </div>
         </div>
@@ -1041,7 +1037,6 @@ function openSessionDetail(item) {
     ? `上次编辑 ${formatDateTime(item.updated_at)}`
     : "上次编辑 未修改";
   elements.sessionTitleInput.value = item.title ?? "";
-  elements.sessionSceneSelect.value = item.scene;
   elements.sessionFavoriteCheckbox.checked = Boolean(item.favorite);
   elements.sessionRawText.value = item.raw_text;
   elements.sessionProcessedText.value = item.processed_text;
@@ -1085,7 +1080,6 @@ async function handleSaveSession(event) {
     title: elements.sessionTitleInput.value.trim(),
     raw_text: elements.sessionRawText.value,
     processed_text: elements.sessionProcessedText.value,
-    scene: elements.sessionSceneSelect.value,
     category_id: elements.sessionCategorySelect.value || null,
     favorite: elements.sessionFavoriteCheckbox.checked,
   });
@@ -1145,7 +1139,6 @@ function handleSendSessionToWorkbench() {
   }
   elements.rawText.value = elements.sessionRawText.value;
   elements.processedText.value = elements.sessionProcessedText.value;
-  elements.sceneSelect.value = elements.sessionSceneSelect.value;
   renderMetrics({
     raw_length: elements.sessionRawText.value.length,
     processed_length: elements.sessionProcessedText.value.length,
@@ -1376,17 +1369,6 @@ async function copyText(text, statusElement = null) {
   }
 }
 
-function sceneLabel(scene) {
-  const labels = {
-    general: "通用输入",
-    meeting: "会议纪要",
-    study: "学习笔记",
-    message: "聊天回复",
-    code_note: "代码说明",
-  };
-  return labels[scene] ?? scene;
-}
-
 function formatFileSize(bytes) {
   if (!bytes) {
     return "0 KB";
@@ -1487,7 +1469,7 @@ function syncRecognitionControls() {
 
   if (browserMode) {
     elements.recordButton.textContent = "开始识别";
-    setRecognitionHint("本机识别使用浏览器 Web Speech API，支持前端实时临时结果；输入场景会在“整理文本”时生效。");
+    setRecognitionHint("本机识别使用浏览器 Web Speech API，支持前端实时临时结果；整理文本会清理口癖、标点和热词。");
   } else if (isRealtimeProvider(provider.id)) {
     elements.recordButton.textContent = pcmStreamRecorder.isRecording()
       ? "停止实时识别"

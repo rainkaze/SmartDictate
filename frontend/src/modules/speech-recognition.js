@@ -9,7 +9,6 @@ const errorMessages = {
 
 const browserLanguageMap = {
   zh_cn: "zh-CN",
-  zh_en: "zh-CN",
   en_us: "en-US",
   ja_jp: "ja-JP",
   dialect: "zh-CN",
