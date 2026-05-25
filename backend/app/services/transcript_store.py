@@ -5,6 +5,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from backend.app.models import (
+    TranscriptAudio,
     TranscriptCategory,
     TranscriptItem,
     TranscriptMetrics,
@@ -53,9 +54,10 @@ class TranscriptStore:
                 """
                 INSERT INTO transcripts (
                     id, title, raw_text, processed_text, scene, category_id, favorite,
-                    metrics_json, created_at, updated_at
+                    audio_path, audio_filename, audio_content_type, audio_size_bytes,
+                    audio_duration_ms, metrics_json, created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     item.id,
@@ -65,6 +67,11 @@ class TranscriptStore:
                     item.scene,
                     item.category_id,
                     int(item.favorite),
+                    None,
+                    item.audio.filename if item.audio else None,
+                    item.audio.content_type if item.audio else None,
+                    item.audio.size_bytes if item.audio else None,
+                    item.audio.duration_ms if item.audio else None,
                     item.metrics.model_dump_json(),
                     item.created_at.isoformat(),
                     item.updated_at.isoformat(),
@@ -107,7 +114,8 @@ class TranscriptStore:
                 f"""
                 SELECT
                     id, title, raw_text, processed_text, scene, category_id, favorite,
-                    metrics_json, created_at, updated_at
+                    audio_path, audio_filename, audio_content_type, audio_size_bytes,
+                    audio_duration_ms, metrics_json, created_at, updated_at
                 FROM transcripts
                 {where_sql}
                 ORDER BY favorite DESC, updated_at DESC, created_at DESC
@@ -256,6 +264,25 @@ class TranscriptStore:
         if "favorite" in updates:
             fields.append("favorite = ?")
             params.append(int(bool(updates["favorite"])))
+        if "raw_text" in updates:
+            fields.append("raw_text = ?")
+            params.append(str(updates["raw_text"]))
+        if "processed_text" in updates:
+            fields.append("processed_text = ?")
+            params.append(str(updates["processed_text"]))
+        if "scene" in updates:
+            fields.append("scene = ?")
+            params.append(str(updates["scene"]))
+
+        if "raw_text" in updates or "processed_text" in updates:
+            current = self.get(transcript_id)
+            if current is None:
+                return None
+            raw_text = str(updates.get("raw_text", current.raw_text))
+            processed_text = str(updates.get("processed_text", current.processed_text))
+            metrics = self._derive_metrics(raw_text, processed_text, current.metrics)
+            fields.append("metrics_json = ?")
+            params.append(metrics.model_dump_json())
 
         if not fields:
             return self.get(transcript_id)
@@ -274,19 +301,91 @@ class TranscriptStore:
 
         return self.get(transcript_id)
 
+    def attach_audio(
+        self,
+        transcript_id: str,
+        audio_path: str,
+        filename: str,
+        content_type: str,
+        size_bytes: int,
+        duration_ms: int | None = None,
+    ) -> TranscriptItem | None:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE transcripts
+                SET
+                    audio_path = ?,
+                    audio_filename = ?,
+                    audio_content_type = ?,
+                    audio_size_bytes = ?,
+                    audio_duration_ms = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    audio_path,
+                    filename,
+                    content_type,
+                    size_bytes,
+                    duration_ms,
+                    datetime.now(UTC).isoformat(),
+                    transcript_id,
+                ),
+            )
+            if cursor.rowcount == 0:
+                return None
+        return self.get(transcript_id)
+
+    def clear_audio(self, transcript_id: str) -> TranscriptItem | None:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE transcripts
+                SET
+                    audio_path = NULL,
+                    audio_filename = NULL,
+                    audio_content_type = NULL,
+                    audio_size_bytes = NULL,
+                    audio_duration_ms = NULL,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (datetime.now(UTC).isoformat(), transcript_id),
+            )
+            if cursor.rowcount == 0:
+                return None
+        return self.get(transcript_id)
+
     def get(self, transcript_id: str) -> TranscriptItem | None:
         with self._connect() as connection:
             row = connection.execute(
                 """
                 SELECT
                     id, title, raw_text, processed_text, scene, category_id, favorite,
-                    metrics_json, created_at, updated_at
+                    audio_path, audio_filename, audio_content_type, audio_size_bytes,
+                    audio_duration_ms, metrics_json, created_at, updated_at
                 FROM transcripts
                 WHERE id = ?
                 """,
                 (transcript_id,),
             ).fetchone()
         return self._row_to_item(row) if row else None
+
+    def get_audio_path(self, transcript_id: str) -> str | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT audio_path FROM transcripts WHERE id = ?",
+                (transcript_id,),
+            ).fetchone()
+        return str(row["audio_path"]) if row and row["audio_path"] else None
+
+    def list_audio_paths(self) -> list[str]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT audio_path FROM transcripts WHERE audio_path IS NOT NULL"
+            ).fetchall()
+        return [str(row["audio_path"]) for row in rows]
 
     def delete(self, transcript_id: str) -> bool:
         with self._connect() as connection:
@@ -349,6 +448,11 @@ class TranscriptStore:
                     scene TEXT NOT NULL,
                     category_id TEXT REFERENCES transcript_categories(id) ON DELETE SET NULL,
                     favorite INTEGER NOT NULL DEFAULT 0,
+                    audio_path TEXT,
+                    audio_filename TEXT,
+                    audio_content_type TEXT,
+                    audio_size_bytes INTEGER,
+                    audio_duration_ms INTEGER,
                     metrics_json TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
@@ -397,6 +501,16 @@ class TranscriptStore:
             )
         if "updated_at" not in columns:
             connection.execute("ALTER TABLE transcripts ADD COLUMN updated_at TEXT")
+        if "audio_path" not in columns:
+            connection.execute("ALTER TABLE transcripts ADD COLUMN audio_path TEXT")
+        if "audio_filename" not in columns:
+            connection.execute("ALTER TABLE transcripts ADD COLUMN audio_filename TEXT")
+        if "audio_content_type" not in columns:
+            connection.execute("ALTER TABLE transcripts ADD COLUMN audio_content_type TEXT")
+        if "audio_size_bytes" not in columns:
+            connection.execute("ALTER TABLE transcripts ADD COLUMN audio_size_bytes INTEGER")
+        if "audio_duration_ms" not in columns:
+            connection.execute("ALTER TABLE transcripts ADD COLUMN audio_duration_ms INTEGER")
 
         rows = connection.execute(
             """
@@ -445,10 +559,21 @@ class TranscriptStore:
                 "scene": row["scene"],
                 "category_id": row["category_id"],
                 "favorite": bool(row["favorite"]),
+                "audio": self._row_to_audio(row),
                 "metrics": TranscriptMetrics.model_validate_json(row["metrics_json"]),
                 "created_at": row["created_at"],
                 "updated_at": row["updated_at"],
             }
+        )
+
+    def _row_to_audio(self, row: sqlite3.Row) -> TranscriptAudio | None:
+        if not row["audio_path"]:
+            return None
+        return TranscriptAudio(
+            filename=row["audio_filename"] or "session-audio",
+            content_type=row["audio_content_type"] or "application/octet-stream",
+            size_bytes=int(row["audio_size_bytes"] or 0),
+            duration_ms=row["audio_duration_ms"],
         )
 
     def _row_to_category(self, row: sqlite3.Row) -> TranscriptCategory:
@@ -468,3 +593,16 @@ class TranscriptStore:
         if limit is None:
             return self.limit
         return max(1, min(limit, self.limit))
+
+    def _derive_metrics(
+        self,
+        raw_text: str,
+        processed_text: str,
+        previous_metrics: TranscriptMetrics,
+    ) -> TranscriptMetrics:
+        return TranscriptMetrics(
+            raw_length=len(raw_text),
+            processed_length=len(processed_text),
+            removed_fillers=previous_metrics.removed_fillers,
+            estimated_reading_seconds=max(1, round(len(processed_text) / 5)),
+        )

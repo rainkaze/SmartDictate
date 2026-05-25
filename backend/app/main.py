@@ -7,6 +7,7 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Query, Request, Response, WebSocket, status
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.datastructures import UploadFile
+from starlette.responses import FileResponse
 from starlette.websockets import WebSocketDisconnect
 
 from backend.app.asr.models import (
@@ -57,6 +58,8 @@ hotword_dictionary = HotwordDictionary(database_file=settings.database_file)
 processor = TextProcessor(rules_provider=hotword_dictionary.get_text_rules)
 store = TranscriptStore(database_file=settings.database_file)
 asr_registry = AsrProviderRegistry(settings)
+
+SESSION_AUDIO_DIR = Path("backend/data/session-audio")
 
 
 @app.get("/api/health")
@@ -284,16 +287,104 @@ def update_transcript_metadata(
     return item
 
 
+@app.post("/api/transcripts/{transcript_id}/audio", response_model=TranscriptItem)
+async def upload_transcript_audio(
+    transcript_id: str,
+    request: Request,
+) -> TranscriptItem:
+    transcript = store.get(transcript_id)
+    if transcript is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="历史记录不存在")
+
+    try:
+        form = await request.form()
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="音频上传接口需要安装 python-multipart，请执行 pip install -r requirements.txt",
+        ) from exc
+
+    audio = form.get("audio")
+    if not isinstance(audio, UploadFile):
+        raise HTTPException(status_code=400, detail="缺少音频文件")
+
+    duration_ms = _parse_optional_int(form.get("duration_ms"))
+    SESSION_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+    filename = audio.filename or "session-audio.wav"
+    suffix = _safe_audio_suffix(filename)
+    target_file = SESSION_AUDIO_DIR / f"{transcript_id}-{uuid4().hex}{suffix}"
+
+    old_audio_path = store.get_audio_path(transcript_id)
+    try:
+        with target_file.open("wb") as target:
+            shutil.copyfileobj(audio.file, target)
+        item = store.attach_audio(
+            transcript_id=transcript_id,
+            audio_path=str(target_file),
+            filename=filename,
+            content_type=audio.content_type or "application/octet-stream",
+            size_bytes=target_file.stat().st_size,
+            duration_ms=duration_ms,
+        )
+    finally:
+        audio.file.close()
+
+    if item is None:
+        _delete_file_if_exists(target_file)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="历史记录不存在")
+
+    if old_audio_path:
+        _delete_file_if_exists(Path(old_audio_path))
+    return item
+
+
+@app.get("/api/transcripts/{transcript_id}/audio")
+def get_transcript_audio(transcript_id: str) -> FileResponse:
+    item = store.get(transcript_id)
+    audio_path = store.get_audio_path(transcript_id)
+    if item is None or not item.audio or not audio_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="音频不存在")
+
+    audio_file = Path(audio_path)
+    if not audio_file.exists():
+        store.clear_audio(transcript_id)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="音频文件已丢失")
+
+    return FileResponse(
+        audio_file,
+        media_type=item.audio.content_type,
+        filename=item.audio.filename,
+    )
+
+
+@app.delete("/api/transcripts/{transcript_id}/audio", status_code=status.HTTP_204_NO_CONTENT)
+def delete_transcript_audio(transcript_id: str, response: Response) -> None:
+    audio_path = store.get_audio_path(transcript_id)
+    item = store.clear_audio(transcript_id)
+    if item is None:
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return
+    if audio_path:
+        _delete_file_if_exists(Path(audio_path))
+
+
 @app.delete("/api/transcripts/{transcript_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_transcript(transcript_id: str, response: Response) -> None:
+    audio_path = store.get_audio_path(transcript_id)
     deleted = store.delete(transcript_id)
     if not deleted:
         response.status_code = status.HTTP_404_NOT_FOUND
+        return
+    if audio_path:
+        _delete_file_if_exists(Path(audio_path))
 
 
 @app.delete("/api/transcripts", status_code=status.HTTP_204_NO_CONTENT)
 def clear_transcripts() -> None:
+    audio_paths = store.list_audio_paths()
     store.clear()
+    for audio_path in audio_paths:
+        _delete_file_if_exists(Path(audio_path))
 
 
 @app.get("/api/hotwords", response_model=list[HotwordItem])
@@ -317,3 +408,27 @@ def delete_hotword(source: str, response: Response) -> None:
     deleted = hotword_dictionary.delete(source)
     if not deleted:
         response.status_code = status.HTTP_404_NOT_FOUND
+
+
+def _safe_audio_suffix(filename: str) -> str:
+    suffix = Path(filename).suffix.lower()
+    if suffix in {".wav", ".mp3", ".m4a", ".aac", ".ogg", ".webm", ".flac", ".pcm"}:
+        return suffix
+    return ".wav"
+
+
+def _parse_optional_int(value: object) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(str(value))
+    except ValueError:
+        return None
+
+
+def _delete_file_if_exists(path: Path) -> None:
+    try:
+        if path.exists():
+            path.unlink()
+    except OSError:
+        pass

@@ -69,6 +69,58 @@ def test_store_updates_favorite_title_and_category() -> None:
     assert updated.updated_at >= updated.created_at
 
 
+def test_store_updates_session_text_and_metrics() -> None:
+    store = create_store()
+    item = create_item("原始文本")
+    store.add(item)
+
+    updated = store.update_metadata(
+        item.id,
+        {
+            "raw_text": "新的原始文本",
+            "processed_text": "新的整理结果",
+            "scene": "meeting",
+        },
+    )
+
+    assert updated is not None
+    assert updated.raw_text == "新的原始文本"
+    assert updated.processed_text == "新的整理结果"
+    assert updated.scene == "meeting"
+    assert updated.metrics.raw_length == len("新的原始文本")
+    assert updated.metrics.processed_length == len("新的整理结果")
+
+
+def test_store_attaches_and_clears_audio_metadata() -> None:
+    store = create_store()
+    item = create_item("带音频的会话")
+    store.add(item)
+
+    updated = store.attach_audio(
+        transcript_id=item.id,
+        audio_path="backend/data/session-audio/example.wav",
+        filename="example.wav",
+        content_type="audio/wav",
+        size_bytes=128,
+        duration_ms=3000,
+    )
+
+    assert updated is not None
+    assert updated.audio is not None
+    assert updated.audio.filename == "example.wav"
+    assert updated.audio.content_type == "audio/wav"
+    assert updated.audio.size_bytes == 128
+    assert updated.audio.duration_ms == 3000
+    assert store.get_audio_path(item.id) == "backend/data/session-audio/example.wav"
+    assert store.list_audio_paths() == ["backend/data/session-audio/example.wav"]
+
+    cleared = store.clear_audio(item.id)
+
+    assert cleared is not None
+    assert cleared.audio is None
+    assert store.get_audio_path(item.id) is None
+
+
 def test_store_filters_by_category_favorite_and_query() -> None:
     store = create_store()
     meeting = create_item("会议需要确认上线计划")

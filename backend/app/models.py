@@ -57,8 +57,18 @@ class TranscriptMetrics(BaseModel):
     estimated_reading_seconds: int
 
 
+class TranscriptAudio(BaseModel):
+    filename: str
+    content_type: str
+    size_bytes: int
+    duration_ms: int | None = None
+
+
 class TranscriptMetadataUpdateRequest(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=80)
+    raw_text: str | None = Field(default=None, min_length=0, max_length=10000)
+    processed_text: str | None = Field(default=None, min_length=0, max_length=10000)
+    scene: Scene | None = None
     category_id: str | None = Field(default=None, max_length=64)
     favorite: bool | None = None
 
@@ -71,6 +81,7 @@ class TranscriptItem(BaseModel):
     scene: Scene
     category_id: str | None = None
     favorite: bool = False
+    audio: TranscriptAudio | None = None
     metrics: TranscriptMetrics
     created_at: datetime
     updated_at: datetime
