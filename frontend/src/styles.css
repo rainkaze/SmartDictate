@@ -40,7 +40,7 @@ input {
   display: grid;
   grid-template-columns: 1fr;
   gap: 12px;
-  width: min(1440px, calc(100vw - 24px));
+  width: min(1180px, calc(100vw - 24px));
   min-height: calc(100vh - 24px);
   margin: 12px auto;
 }
@@ -93,8 +93,7 @@ input {
 .side-panel,
 .history-panel,
 .dictionary-panel,
-.session-detail-panel,
-.settings-panel {
+.session-detail-panel {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -119,8 +118,7 @@ input {
 
 .history-panel,
 .dictionary-panel,
-.session-detail-panel,
-.settings-panel {
+.session-detail-panel {
   padding: 20px;
   overflow: auto;
 }
@@ -180,7 +178,7 @@ h2 {
 
 .control-panel {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: end;
   justify-content: stretch;
   gap: 14px;
@@ -193,7 +191,7 @@ h2 {
 
 .recognition-panel {
   display: grid;
-  grid-template-columns: minmax(160px, 0.7fr) minmax(260px, 1fr) minmax(280px, 1.2fr);
+  grid-template-columns: minmax(150px, 0.8fr) minmax(240px, 1fr) minmax(260px, 1.1fr);
   align-items: center;
   gap: 16px;
   min-height: 82px;
@@ -337,6 +335,10 @@ h2 {
   gap: 6px;
   min-width: 0;
   max-width: 100%;
+}
+
+.select-shell {
+  position: relative;
 }
 
 .field label {
@@ -504,23 +506,35 @@ textarea {
 
 .history-list {
   display: grid;
+  flex: 1 1 auto;
   gap: 12px;
   margin-top: 14px;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .library-layout {
   display: grid;
-  grid-template-columns: minmax(320px, 0.8fr) minmax(0, 1.2fr);
+  grid-template-columns: 360px minmax(0, 1fr);
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
+  height: calc(100vh - 170px);
+  min-height: 560px;
+  overflow: hidden;
+  width: min(1180px, 100%);
+  margin: 0 auto;
 }
 
 .library-panel {
-  max-height: calc(100vh - 190px);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .session-detail-panel {
-  min-height: 620px;
+  min-height: 0;
 }
 
 .session-empty {
@@ -539,27 +553,8 @@ textarea {
 }
 
 .full-panel {
-  max-width: 920px;
-}
-
-.settings-grid {
-  display: grid;
-  gap: 12px;
-  margin-top: 14px;
-}
-
-.settings-grid article {
-  display: grid;
-  gap: 8px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fbfcfd;
-}
-
-.settings-grid p {
-  color: var(--muted);
-  line-height: 1.7;
+  width: min(820px, 100%);
+  margin: 0 auto;
 }
 
 .history-controls input {
@@ -738,13 +733,6 @@ textarea {
   content: "";
 }
 
-.history-edit-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-}
-
 .session-detail-form {
   display: grid;
   gap: 16px;
@@ -819,11 +807,6 @@ textarea {
   padding: 8px 10px;
 }
 
-.history-edit-row select {
-  height: 34px;
-  font-size: 13px;
-}
-
 .history-actions {
   gap: 8px;
   flex-wrap: wrap;
@@ -855,8 +838,19 @@ textarea {
     grid-template-columns: 1fr;
   }
 
+  .library-layout {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
   .library-panel {
-    max-height: none;
+    overflow: visible;
+  }
+
+  .history-list {
+    overflow: visible;
+    padding-right: 0;
   }
 
   .recognition-panel {
@@ -887,7 +881,6 @@ textarea {
   .history-panel,
   .dictionary-panel,
   .session-detail-panel,
-  .settings-panel,
   .app-header {
     padding: 14px;
   }
@@ -916,8 +909,7 @@ textarea {
     height: 30px;
   }
 
-  .category-form,
-  .history-edit-row {
+  .category-form {
     grid-template-columns: 1fr;
   }
 

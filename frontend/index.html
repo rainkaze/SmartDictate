@@ -19,7 +19,6 @@
         <button class="nav-button active" type="button" data-view-target="workbench">工作台</button>
         <button class="nav-button" type="button" data-view-target="sessions">会话库</button>
         <button class="nav-button" type="button" data-view-target="hotwords">热词</button>
-        <button class="nav-button" type="button" data-view-target="settings">设置</button>
       </nav>
 
       <section class="app-view active" id="workbenchView" data-view="workbench">
@@ -183,34 +182,34 @@
 
       <section class="app-view" id="sessionsView" data-view="sessions">
         <section class="library-layout">
-          <div>
-            <section class="history-panel library-panel">
-              <div class="pane-header">
-                <h2>会话库</h2>
-                <div class="history-toolbar">
-                  <button class="text-button" id="refreshHistoryButton" type="button">刷新</button>
-                  <button class="text-button danger-text" id="clearHistoryButton" type="button">清空</button>
-                </div>
+          <section class="history-panel library-panel">
+            <div class="pane-header">
+              <h2>会话库</h2>
+              <div class="history-toolbar">
+                <button class="text-button" id="refreshHistoryButton" type="button">刷新</button>
+                <button class="text-button danger-text" id="clearHistoryButton" type="button">清空</button>
               </div>
-              <div class="history-controls" aria-label="会话筛选">
-                <input id="historySearchInput" maxlength="80" placeholder="搜索标题或内容" />
+            </div>
+            <div class="history-controls" aria-label="会话筛选">
+              <input id="historySearchInput" maxlength="80" placeholder="搜索标题或内容" />
+              <div class="select-shell">
                 <select id="historyCategoryFilter">
                   <option value="">全部分类</option>
                   <option value="uncategorized">未分类</option>
                 </select>
-                <label class="checkbox-field">
-                  <input id="historyFavoriteFilter" type="checkbox" />
-                  <span>只看收藏</span>
-                </label>
               </div>
-              <form class="category-form" id="categoryForm">
-                <input id="categoryNameInput" maxlength="24" placeholder="新建分类，例如 面试" />
-                <input id="categoryColorInput" type="color" value="#0f766e" aria-label="分类颜色" />
-                <button class="secondary-button" type="submit">添加</button>
-              </form>
-              <div id="historyList" class="history-list"></div>
-            </section>
-          </div>
+              <label class="checkbox-field">
+                <input id="historyFavoriteFilter" type="checkbox" />
+                <span>只看收藏</span>
+              </label>
+            </div>
+            <form class="category-form" id="categoryForm">
+              <input id="categoryNameInput" maxlength="24" placeholder="新建分类，例如 面试" />
+              <input id="categoryColorInput" type="color" value="#0f766e" aria-label="分类颜色" />
+              <button class="secondary-button" type="submit">添加</button>
+            </form>
+            <div id="historyList" class="history-list"></div>
+          </section>
 
           <section class="session-detail-panel" id="sessionDetailPanel">
             <div class="pane-header">
@@ -288,25 +287,6 @@
             <button class="secondary-button" type="submit">添加</button>
           </form>
           <div id="hotwordList" class="hotword-list"></div>
-        </section>
-      </section>
-
-      <section class="app-view" id="settingsView" data-view="settings">
-        <section class="settings-panel full-panel">
-          <div class="pane-header">
-            <h2>设置</h2>
-            <span>本地优先</span>
-          </div>
-          <div class="settings-grid">
-            <article>
-              <strong>音频归档</strong>
-              <p>工作台的“保存音频到会话库”只影响后续创建的会话。已保存音频可在会话详情中播放、替换或删除。</p>
-            </article>
-            <article>
-              <strong>数据位置</strong>
-              <p>会话文本保存在本地 SQLite，音频附件保存在 backend/data/session-audio，不会提交到代码仓库。</p>
-            </article>
-          </div>
         </section>
       </section>
     </main>

@@ -907,11 +907,6 @@ function renderHistory(items) {
       handleHistoryAction(button.dataset.action, button.dataset.historyId);
     });
   }
-  for (const select of elements.historyList.querySelectorAll("select[data-action='category']")) {
-    select.addEventListener("change", () => {
-      handleHistoryCategoryChange(select.dataset.historyId, select.value);
-    });
-  }
 }
 
 function renderHistoryItem(item) {
@@ -943,12 +938,6 @@ function renderHistoryItem(item) {
         </div>
       </div>
       <p class="history-text">${escapeHtml(item.processed_text)}</p>
-      <div class="history-edit-row">
-        <select data-action="category" data-history-id="${item.id}" aria-label="会话分类">
-          ${renderHistoryCategoryOptions(item.category_id)}
-        </select>
-        <button class="text-button" type="button" data-action="rename" data-history-id="${item.id}">重命名</button>
-      </div>
       <div class="history-meta">
         <span>原文 ${item.metrics.raw_length} 字</span>
         <span>清理 ${item.metrics.removed_fillers} 处</span>
@@ -986,7 +975,7 @@ function openSessionDetail(item) {
   state.selectedSessionId = item.id;
   elements.sessionDetailEmpty.classList.add("hidden");
   elements.sessionDetailForm.classList.remove("hidden");
-  elements.sessionDetailHeading.textContent = item.title ?? "会话详情";
+  elements.sessionDetailHeading.textContent = "会话详情";
   elements.sessionDetailStatus.textContent = item.favorite ? "已收藏" : "可编辑";
   elements.sessionTitleInput.value = item.title ?? "";
   elements.sessionSceneSelect.value = item.scene;
@@ -1157,11 +1146,6 @@ async function handleHistoryAction(action, id) {
     }
     await loadHistory();
   }
-}
-
-async function handleHistoryCategoryChange(id, categoryId) {
-  await updateTranscript(id, { category_id: categoryId || null });
-  await loadHistory();
 }
 
 async function handleClearHistory() {
