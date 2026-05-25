@@ -91,12 +91,42 @@
           </div>
         </section>
 
-        <section class="recognition-panel" aria-label="语音识别状态">
-          <div>
+        <section class="recognition-panel" id="recognitionPanel" data-stream-state="idle" aria-label="语音识别状态">
+          <div class="recognition-summary">
             <span class="eyebrow">识别状态</span>
-            <strong id="recognitionStatus">等待输入</strong>
+            <div class="status-line">
+              <span class="stream-dot" aria-hidden="true"></span>
+              <strong id="recognitionStatus">等待输入</strong>
+            </div>
+            <div class="stream-meta">
+              <span id="streamPhase">待输入</span>
+              <span id="streamSource">未采集</span>
+            </div>
           </div>
-          <p id="interimText">浏览器识别会实时显示临时结果；API 识别会在录制或上传完成后返回文本。</p>
+          <div class="waveform" id="waveform" aria-label="实时音频强度">
+            <span style="--index: 0"></span>
+            <span style="--index: 1"></span>
+            <span style="--index: 2"></span>
+            <span style="--index: 3"></span>
+            <span style="--index: 4"></span>
+            <span style="--index: 5"></span>
+            <span style="--index: 6"></span>
+            <span style="--index: 7"></span>
+            <span style="--index: 8"></span>
+            <span style="--index: 9"></span>
+            <span style="--index: 10"></span>
+            <span style="--index: 11"></span>
+            <span style="--index: 12"></span>
+            <span style="--index: 13"></span>
+            <span style="--index: 14"></span>
+            <span style="--index: 15"></span>
+            <span style="--index: 16"></span>
+            <span style="--index: 17"></span>
+          </div>
+          <div class="recognition-copy">
+            <p id="interimText">浏览器识别会实时显示临时结果；API 识别会在录制或上传完成后返回文本。</p>
+            <span id="streamTransport">本地待命</span>
+          </div>
         </section>
 
         <section class="editor-grid">

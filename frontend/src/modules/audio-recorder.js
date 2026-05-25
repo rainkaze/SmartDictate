@@ -101,7 +101,10 @@ export function createPcmStreamRecorder() {
   let mediaStream = null;
   let startedAt = null;
 
-  async function start(source, onChunk) {
+  async function start(source, handlersOrOnChunk) {
+    const handlers =
+      typeof handlersOrOnChunk === "function" ? { onChunk: handlersOrOnChunk } : handlersOrOnChunk;
+
     stopTracks();
     startedAt = Date.now();
 
@@ -131,10 +134,11 @@ export function createPcmStreamRecorder() {
 
     processorNode.onaudioprocess = (event) => {
       const samples = new Float32Array(event.inputBuffer.getChannelData(0));
+      handlers?.onLevel?.(calculateLevel(samples));
       const resampled = resample(samples, audioContext.sampleRate, TARGET_SAMPLE_RATE);
       const pcm = encodePcm16(resampled);
       if (pcm.byteLength > 0) {
-        onChunk(pcm);
+        handlers?.onChunk?.(pcm);
       }
     };
 
@@ -183,6 +187,20 @@ export function createPcmStreamRecorder() {
     stop,
     isRecording,
   };
+}
+
+function calculateLevel(samples) {
+  if (!samples.length) {
+    return 0;
+  }
+
+  let sum = 0;
+  for (const sample of samples) {
+    sum += sample * sample;
+  }
+
+  const rms = Math.sqrt(sum / samples.length);
+  return Math.min(1, rms * 5);
 }
 
 function mergeChunks(chunks) {
