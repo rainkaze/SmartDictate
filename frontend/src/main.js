@@ -39,8 +39,13 @@ const elements = {
   hotwordTarget: document.querySelector("#hotwordTarget"),
   hotwordStatus: document.querySelector("#hotwordStatus"),
   hotwordList: document.querySelector("#hotwordList"),
+  recognitionPanel: document.querySelector("#recognitionPanel"),
   recognitionStatus: document.querySelector("#recognitionStatus"),
   interimText: document.querySelector("#interimText"),
+  streamPhase: document.querySelector("#streamPhase"),
+  streamSource: document.querySelector("#streamSource"),
+  streamTransport: document.querySelector("#streamTransport"),
+  waveformBars: Array.from(document.querySelectorAll("#waveform span")),
   copyStatus: document.querySelector("#copyStatus"),
   rawText: document.querySelector("#rawText"),
   processedText: document.querySelector("#processedText"),
@@ -61,6 +66,8 @@ const state = {
   hotwordItems: [],
   asrProviders: [],
   streamSocket: null,
+  recognitionPhase: "idle",
+  streamLevel: 0,
 };
 
 const providerFallbacks = {
@@ -126,6 +133,23 @@ const modeLabels = {
   long: "录音文件转写",
 };
 
+const sourceCompactLabels = {
+  idle: "未采集",
+  microphone: "麦克风",
+  file: "本机文件",
+  system: "标签页音频",
+};
+
+const phaseLabels = {
+  idle: "待输入",
+  connecting: "连接中",
+  capturing: "采集中",
+  recognizing: "识别中",
+  closing: "收尾中",
+  done: "已完成",
+  error: "异常",
+};
+
 const wavRecorder = createWavRecorder();
 const pcmStreamRecorder = createPcmStreamRecorder();
 
@@ -135,26 +159,45 @@ const speechController = createSpeechRecognitionController({
     startElapsedTimer();
     elements.recordButton.textContent = "停止识别";
     elements.recordButton.classList.add("recording");
-    elements.recognitionStatus.textContent = "浏览器正在监听";
-    elements.interimText.textContent = "请开始说话。";
+    setRecognitionPhase("capturing", {
+      status: "浏览器正在监听",
+      source: "microphone",
+      transport: "Web Speech",
+      detail: "请开始说话。",
+    });
   },
   onStop: () => {
     stopElapsedTimer();
     elements.recordButton.textContent = "开始识别";
     elements.recordButton.classList.remove("recording");
-    elements.recognitionStatus.textContent = "已停止";
-    elements.interimText.textContent = "浏览器识别已停止。";
+    setRecognitionPhase("done", {
+      status: "已停止",
+      source: "microphone",
+      transport: "Web Speech",
+      detail: "浏览器识别已停止。",
+      level: 0,
+    });
   },
   onFinalText: (text) => {
     appendRawText(text);
     updateMetrics();
   },
   onInterimText: (text) => {
-    elements.interimText.textContent = text || "正在等待更清晰的语音输入。";
+    setRecognitionPhase("recognizing", {
+      status: "浏览器识别中",
+      source: "microphone",
+      transport: "Web Speech",
+      detail: text || "正在等待更清晰的语音输入。",
+    });
   },
   onError: (message) => {
     stopElapsedTimer();
-    elements.recognitionStatus.textContent = message;
+    setRecognitionPhase("error", {
+      status: message,
+      source: "microphone",
+      transport: "Web Speech",
+      level: 0,
+    });
     elements.recordButton.textContent = "开始识别";
     elements.recordButton.classList.remove("recording");
   },
@@ -163,6 +206,56 @@ const speechController = createSpeechRecognitionController({
 function setApiStatus(online) {
   elements.apiStatus.textContent = online ? "后端在线" : "后端离线";
   elements.apiStatus.classList.toggle("offline", !online);
+}
+
+function setRecognitionPhase(phase, options = {}) {
+  state.recognitionPhase = phase;
+  elements.recognitionPanel.dataset.streamState = phase;
+  elements.streamPhase.textContent = phaseLabels[phase] ?? phase;
+
+  if (options.status) {
+    elements.recognitionStatus.textContent = options.status;
+  }
+  if (options.source) {
+    elements.streamSource.textContent = sourceCompactLabels[options.source] ?? options.source;
+  }
+  if (options.transport) {
+    elements.streamTransport.textContent = options.transport;
+  }
+  if (options.detail) {
+    elements.interimText.textContent = options.detail;
+  }
+  if (typeof options.level === "number") {
+    updateWaveform(options.level);
+  }
+}
+
+function resetRecognitionPhase(detail = null) {
+  setRecognitionPhase("idle", {
+    status: "等待输入",
+    source: "idle",
+    transport: "本地待命",
+    detail: detail ?? "选择识别方式后开始输入。",
+    level: 0,
+  });
+}
+
+function setRecognitionHint(message) {
+  if (state.recognitionPhase === "idle") {
+    elements.interimText.textContent = message;
+  }
+}
+
+function updateWaveform(level) {
+  const normalized = Math.max(0, Math.min(1, level));
+  state.streamLevel = normalized === 0 ? 0 : state.streamLevel * 0.62 + normalized * 0.38;
+
+  elements.waveformBars.forEach((bar, index) => {
+    const curve = 0.58 + Math.sin(index * 1.4) * 0.22 + (index % 5) * 0.035;
+    const height = Math.max(0.12, Math.min(1, 0.14 + state.streamLevel * curve));
+    bar.style.transform = `scaleY(${height})`;
+    bar.style.opacity = String(Math.max(0.35, Math.min(1, 0.42 + state.streamLevel * 0.72)));
+  });
 }
 
 async function refreshApiStatus() {
@@ -307,8 +400,13 @@ async function startIatStreamRecognition(source) {
   });
 
   elements.recordButton.disabled = true;
-  elements.recognitionStatus.textContent = "正在连接 IAT 实时识别";
-  elements.interimText.textContent = "将实时采集音频并显示识别中的文本。";
+  setRecognitionPhase("connecting", {
+    status: "正在连接 IAT",
+    source,
+    transport: "WebSocket 连接中",
+    detail: "正在建立实时识别通道。",
+    level: 0,
+  });
 
   const socket = await openStreamSocket(url);
   state.streamSocket = socket;
@@ -317,24 +415,36 @@ async function startIatStreamRecognition(source) {
   try {
     state.startedAt = Date.now();
     startElapsedTimer();
-    await pcmStreamRecorder.start(source, (chunk) => {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(chunk);
-      }
+    await pcmStreamRecorder.start(source, {
+      onChunk: (chunk) => {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(chunk);
+        }
+      },
+      onLevel: updateWaveform,
     });
     elements.processedText.value = "";
     elements.copyStatus.textContent = "未复制";
     elements.removedFillers.textContent = "0";
     elements.recordButton.textContent = "停止实时识别";
     elements.recordButton.classList.add("recording");
-    elements.recognitionStatus.textContent =
-      source === "system" ? "正在实时转写标签页音频" : "正在实时转写麦克风";
+    setRecognitionPhase("capturing", {
+      status: source === "system" ? "正在转写标签页音频" : "正在转写麦克风",
+      source,
+      transport: "16k PCM 流",
+      detail: "音频已开始实时送入 IAT。",
+    });
   } catch (error) {
     socket.close();
     state.streamSocket = null;
     stopElapsedTimer();
     elements.recordButton.classList.remove("recording");
-    elements.recognitionStatus.textContent = error.message;
+    setRecognitionPhase("error", {
+      status: error.message,
+      source,
+      transport: "连接中断",
+      level: 0,
+    });
   } finally {
     elements.recordButton.disabled = false;
   }
@@ -342,7 +452,13 @@ async function startIatStreamRecognition(source) {
 
 async function stopIatStreamRecognition() {
   elements.recordButton.disabled = true;
-  elements.recognitionStatus.textContent = "正在收尾识别";
+  setRecognitionPhase("closing", {
+    status: "正在收尾识别",
+    source: elements.sourceSelect.value,
+    transport: "等待最终结果",
+    detail: "已停止采集，正在等待 IAT 返回最终文本。",
+    level: 0,
+  });
 
   await pcmStreamRecorder.stop();
   if (state.streamSocket?.readyState === WebSocket.OPEN) {
@@ -370,38 +486,68 @@ function openStreamSocket(url) {
 function bindStreamSocket(socket) {
   socket.addEventListener("message", (event) => {
     const payload = JSON.parse(event.data);
+    const source = elements.sourceSelect.value;
     if (payload.type === "ready") {
-      elements.interimText.textContent = payload.message;
+      setRecognitionPhase("capturing", {
+        status: "实时通道已就绪",
+        source,
+        transport: "WebSocket 已连接",
+        detail: payload.message,
+      });
       return;
     }
     if (payload.type === "partial") {
       elements.rawText.value = payload.text;
-      elements.recognitionStatus.textContent = "实时识别中";
-      elements.interimText.textContent = payload.segment || "正在接收识别片段";
+      setRecognitionPhase("recognizing", {
+        status: "实时识别中",
+        source,
+        transport: "IAT 返回片段",
+        detail: payload.segment || "正在接收识别片段",
+      });
       updateMetrics();
       return;
     }
     if (payload.type === "final") {
       elements.rawText.value = payload.text;
-      elements.recognitionStatus.textContent = payload.text ? "实时识别完成" : "未识别到文本";
-      elements.interimText.textContent = `IAT 实时识别完成，耗时 ${payload.duration_ms}ms`;
+      setRecognitionPhase("done", {
+        status: payload.text ? "实时识别完成" : "未识别到文本",
+        source,
+        transport: "最终结果",
+        detail: `IAT 实时识别完成，耗时 ${payload.duration_ms}ms`,
+        level: 0,
+      });
       updateMetrics();
       return;
     }
     if (payload.type === "error") {
-      elements.recognitionStatus.textContent = payload.message;
-      elements.interimText.textContent = "实时识别已中断，请检查 API 凭据、网络或音频权限。";
+      setRecognitionPhase("error", {
+        status: payload.message,
+        source,
+        transport: "识别中断",
+        detail: "实时识别已中断，请检查 API 凭据、网络或音频权限。",
+        level: 0,
+      });
       socket.close();
     }
   });
 
   socket.addEventListener("close", async () => {
+    const settled = ["done", "error"].includes(state.recognitionPhase);
     state.streamSocket = null;
     if (pcmStreamRecorder.isRecording()) {
       await pcmStreamRecorder.stop();
     }
     stopElapsedTimer();
     elements.recordButton.classList.remove("recording");
+    if (!settled) {
+      setRecognitionPhase("error", {
+        status: "实时连接已关闭",
+        source: elements.sourceSelect.value,
+        transport: "WebSocket 关闭",
+        detail: "实时通道提前关闭，未收到最终识别结果。",
+        level: 0,
+      });
+    }
     syncRecognitionControls();
   });
 }
@@ -413,30 +559,49 @@ async function startApiRecording(source) {
     await wavRecorder.start(source);
     elements.recordButton.textContent = "停止并识别";
     elements.recordButton.classList.add("recording");
-    elements.recognitionStatus.textContent =
-      source === "system" ? "正在采集扬声器音频" : "正在录制麦克风";
-    elements.interimText.textContent =
-      source === "system"
-        ? "请选择要共享音频的标签页或窗口，停止后会上传识别。"
-        : "录制完成后会上传到所选识别 API。";
+    setRecognitionPhase("capturing", {
+      status: source === "system" ? "正在采集扬声器音频" : "正在录制麦克风",
+      source,
+      transport: "本地录音",
+      detail:
+        source === "system"
+          ? "请选择要共享音频的标签页或窗口，停止后会上传识别。"
+          : "录制完成后会上传到所选识别 API。",
+    });
   } catch (error) {
     stopElapsedTimer();
     elements.recordButton.classList.remove("recording");
     elements.recordButton.textContent = "开始识别";
-    elements.recognitionStatus.textContent = error.message;
+    setRecognitionPhase("error", {
+      status: error.message,
+      source,
+      transport: "采集失败",
+      level: 0,
+    });
   }
 }
 
 async function stopApiRecordingAndTranscribe() {
   elements.recordButton.disabled = true;
-  elements.recognitionStatus.textContent = "正在上传识别";
+  setRecognitionPhase("closing", {
+    status: "正在上传识别",
+    source: elements.sourceSelect.value,
+    transport: "上传音频",
+    detail: "已停止采集，正在上传到所选识别接口。",
+    level: 0,
+  });
 
   try {
     const recording = await wavRecorder.stop();
     elements.recordButton.classList.remove("recording");
     elements.recordButton.textContent = "开始识别";
     if (!recording || recording.blob.size === 0) {
-      elements.recognitionStatus.textContent = "没有采集到音频";
+      setRecognitionPhase("error", {
+        status: "没有采集到音频",
+        source: elements.sourceSelect.value,
+        transport: "采集为空",
+        level: 0,
+      });
       return;
     }
     await uploadAndReplace(recording.blob, recording.filename);
@@ -450,14 +615,26 @@ async function stopApiRecordingAndTranscribe() {
 async function transcribeSelectedFile() {
   const file = elements.audioFileInput.files?.[0];
   if (!file) {
-    elements.recognitionStatus.textContent = "请先选择本机音频文件";
+    setRecognitionPhase("error", {
+      status: "请先选择本机音频文件",
+      source: "file",
+      transport: "缺少文件",
+      detail: "当前接口需要先选择一个本机音频文件。",
+      level: 0,
+    });
     return;
   }
 
   state.startedAt = Date.now();
   startElapsedTimer();
   elements.recordButton.disabled = true;
-  elements.recognitionStatus.textContent = "正在上传音频文件";
+  setRecognitionPhase("closing", {
+    status: "正在上传音频文件",
+    source: "file",
+    transport: "上传音频",
+    detail: "正在读取本机文件并提交到识别接口。",
+    level: 0,
+  });
 
   try {
     await uploadAndReplace(file, file.name);
@@ -482,12 +659,22 @@ async function uploadAndReplace(audioBlob, filename) {
     replaceRawText(result.raw_text);
     updateMetrics();
     setApiStatus(true);
-    elements.recognitionStatus.textContent = result.raw_text ? "识别完成" : "识别完成但未返回文本";
-    elements.interimText.textContent = `识别接口：${providerLabel(result.provider)}，耗时 ${result.duration_ms}ms`;
+    setRecognitionPhase("done", {
+      status: result.raw_text ? "识别完成" : "识别完成但未返回文本",
+      source: elements.sourceSelect.value,
+      transport: providerLabel(result.provider),
+      detail: `识别接口：${providerLabel(result.provider)}，耗时 ${result.duration_ms}ms`,
+      level: 0,
+    });
   } catch (error) {
     setApiStatus(error instanceof TypeError ? false : true);
-    elements.recognitionStatus.textContent = error.message;
-    elements.interimText.textContent = "后端已返回识别错误，请按提示检查 API 凭据、服务权限或音频格式。";
+    setRecognitionPhase("error", {
+      status: error.message,
+      source: elements.sourceSelect.value,
+      transport: "识别失败",
+      detail: "后端已返回识别错误，请按提示检查 API 凭据、服务权限或音频格式。",
+      level: 0,
+    });
   }
 }
 
@@ -530,13 +717,19 @@ function handleClearText() {
   elements.removedFillers.textContent = "0";
   state.startedAt = null;
   stopElapsedTimer();
+  resetRecognitionPhase("已清空当前文本。");
   updateMetrics();
 }
 
 function handleFillSample() {
   replaceRawText(sampleText);
-  elements.recognitionStatus.textContent = "已填入示例";
-  elements.interimText.textContent = "可以直接点击“整理文本”验证前后端联动。";
+  setRecognitionPhase("done", {
+    status: "已填入示例",
+    source: "idle",
+    transport: "手动输入",
+    detail: "可以直接点击“整理文本”验证前后端联动。",
+    level: 0,
+  });
   updateMetrics();
 }
 
@@ -768,23 +961,22 @@ function syncRecognitionControls() {
 
   if (browserMode) {
     elements.recordButton.textContent = "开始识别";
-    elements.interimText.textContent =
-      "本机识别使用浏览器 Web Speech API，支持前端实时临时结果；输入场景会在“整理文本”时生效。";
+    setRecognitionHint("本机识别使用浏览器 Web Speech API，支持前端实时临时结果；输入场景会在“整理文本”时生效。");
   } else if (provider.id === "xfyun_iat") {
     elements.recordButton.textContent = pcmStreamRecorder.isRecording()
       ? "停止实时识别"
       : "开始实时识别";
-    elements.interimText.textContent =
-      "IAT 用于麦克风或标签页短音频，会通过 WebSocket 实时显示识别中的文本。";
+    setRecognitionHint("IAT 用于麦克风或标签页短音频，会通过 WebSocket 实时显示识别中的文本。");
   } else if (fileMode) {
     elements.recordButton.textContent = "上传并识别";
-    elements.interimText.textContent = "录音文件转写会上传完整音频并轮询最终结果，适合长音频。";
+    setRecognitionHint("录音文件转写会上传完整音频并轮询最终结果，适合长音频。");
   } else {
     elements.recordButton.textContent = wavRecorder.isRecording() ? "停止并识别" : "开始录制";
-    elements.interimText.textContent =
+    setRecognitionHint(
       source === "system"
         ? "扬声器音频通过浏览器屏幕/标签页共享采集，停止后上传到录音文件转写接口。"
-        : "录制完成后会生成 16k WAV 并上传到所选识别接口。";
+        : "录制完成后会生成 16k WAV 并上传到所选识别接口。",
+    );
   }
 }
 
@@ -800,15 +992,27 @@ function setupEventListeners() {
   elements.rawText.addEventListener("input", updateMetrics);
   elements.processedText.addEventListener("input", updateMetrics);
   elements.vendorSelect.addEventListener("change", () => {
+    resetRecognitionPhase();
     syncProviderOptions();
     syncRecognitionControls();
   });
-  elements.providerSelect.addEventListener("change", syncRecognitionControls);
-  elements.sourceSelect.addEventListener("change", syncRecognitionControls);
-  elements.languageSelect.addEventListener("change", () => {
-    speechController.setLanguage(elements.languageSelect.value);
+  elements.providerSelect.addEventListener("change", () => {
+    resetRecognitionPhase();
+    syncRecognitionControls();
   });
-  elements.modeSelect.addEventListener("change", syncRecognitionControls);
+  elements.sourceSelect.addEventListener("change", () => {
+    resetRecognitionPhase();
+    syncRecognitionControls();
+  });
+  elements.languageSelect.addEventListener("change", () => {
+    resetRecognitionPhase();
+    speechController.setLanguage(elements.languageSelect.value);
+    syncRecognitionControls();
+  });
+  elements.modeSelect.addEventListener("change", () => {
+    resetRecognitionPhase();
+    syncRecognitionControls();
+  });
 }
 
 function setupSpeechSupport() {
@@ -817,11 +1021,17 @@ function setupSpeechSupport() {
     return;
   }
 
-  elements.recognitionStatus.textContent = "当前浏览器不支持本机语音识别";
-  elements.interimText.textContent = "可切换到云端 API，使用录音或音频文件上传识别。";
+  setRecognitionPhase("error", {
+    status: "当前浏览器不支持本机语音识别",
+    source: "idle",
+    transport: "本机不可用",
+    detail: "可切换到云端 API，使用录音或音频文件上传识别。",
+    level: 0,
+  });
 }
 
 setupEventListeners();
+resetRecognitionPhase();
 setupSpeechSupport();
 syncVendorOptions();
 syncRecognitionControls();

@@ -7,6 +7,7 @@
   --line: #d9e0e6;
   --accent: #0f766e;
   --accent-dark: #115e59;
+  --info: #2563eb;
   --warning: #b45309;
   --danger: #b91c1c;
   --shadow: 0 14px 38px rgba(23, 32, 38, 0.08);
@@ -143,31 +144,139 @@ h2 {
 }
 
 .recognition-panel {
-  justify-content: space-between;
-  gap: 16px;
-  min-height: 76px;
-  padding: 14px;
+  display: grid;
+  grid-template-columns: minmax(160px, 0.75fr) minmax(260px, 1.1fr) minmax(260px, 1fr);
+  align-items: center;
+  gap: 18px;
+  min-height: 96px;
+  padding: 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #f9fbfb;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(248, 251, 251, 0.96)),
+    #f9fbfb;
 }
 
-.recognition-panel > div {
+.recognition-summary {
   display: grid;
-  gap: 4px;
-  min-width: 140px;
+  gap: 8px;
+  min-width: 0;
+}
+
+.status-line {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.stream-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--muted);
+  box-shadow: 0 0 0 4px rgba(102, 114, 127, 0.12);
 }
 
 .recognition-panel strong {
   font-size: 18px;
+  line-height: 1.35;
+}
+
+.stream-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.stream-meta span,
+.recognition-copy span {
+  min-height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 9px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.waveform {
+  display: grid;
+  grid-template-columns: repeat(18, 1fr);
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  height: 58px;
+  padding: 10px 12px;
+  border: 1px solid #cfd9e2;
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(241, 246, 248, 0.92)),
+    #f7fafb;
+  overflow: hidden;
+}
+
+.waveform span {
+  display: block;
+  width: 100%;
+  height: 38px;
+  min-width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #2dd4bf, var(--accent-dark));
+  opacity: 0.38;
+  transform: scaleY(0.12);
+  transform-origin: center;
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.recognition-copy {
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+  min-width: 0;
 }
 
 .recognition-panel p {
-  flex: 1;
   min-width: 0;
   color: var(--muted);
   line-height: 1.6;
   text-align: right;
+}
+
+.recognition-panel[data-stream-state="connecting"] .stream-dot,
+.recognition-panel[data-stream-state="capturing"] .stream-dot {
+  background: var(--info);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+}
+
+.recognition-panel[data-stream-state="recognizing"] .stream-dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.14);
+}
+
+.recognition-panel[data-stream-state="closing"] .stream-dot {
+  background: var(--warning);
+  box-shadow: 0 0 0 4px rgba(180, 83, 9, 0.12);
+}
+
+.recognition-panel[data-stream-state="done"] .stream-dot {
+  background: var(--accent-dark);
+  box-shadow: 0 0 0 4px rgba(17, 94, 89, 0.12);
+}
+
+.recognition-panel[data-stream-state="error"] .stream-dot {
+  background: var(--danger);
+  box-shadow: 0 0 0 4px rgba(185, 28, 28, 0.12);
+}
+
+.recognition-panel[data-stream-state="recognizing"] .waveform span,
+.recognition-panel[data-stream-state="capturing"] .waveform span {
+  background: linear-gradient(180deg, #38bdf8, var(--accent));
 }
 
 .eyebrow {
@@ -420,6 +529,18 @@ textarea {
     grid-template-columns: 1fr;
   }
 
+  .recognition-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .recognition-copy {
+    justify-items: start;
+  }
+
+  .recognition-panel p {
+    text-align: left;
+  }
+
   .editor-grid,
   .metrics-grid {
     grid-template-columns: 1fr;
@@ -448,8 +569,14 @@ textarea {
     grid-template-columns: 1fr;
   }
 
-  .recognition-panel p {
-    text-align: left;
+  .waveform {
+    gap: 4px;
+    height: 48px;
+    padding: 8px 10px;
+  }
+
+  .waveform span {
+    height: 30px;
   }
 
   .actions {
