@@ -39,10 +39,10 @@ input {
 .app-shell {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
-  width: min(1440px, calc(100vw - 32px));
-  min-height: calc(100vh - 32px);
-  margin: 16px auto;
+  gap: 12px;
+  width: min(1440px, calc(100vw - 24px));
+  min-height: calc(100vh - 24px);
+  margin: 12px auto;
 }
 
 .app-header {
@@ -50,24 +50,26 @@ input {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 24px;
+  min-height: 76px;
+  padding: 14px 20px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
-  box-shadow: var(--shadow);
+  box-shadow: 0 10px 28px rgba(23, 32, 38, 0.06);
 }
 
 .app-nav {
   display: flex;
   gap: 8px;
-  padding: 6px;
+  padding: 5px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #eef3f5;
 }
 
 .nav-button {
-  min-height: 36px;
+  min-height: 34px;
+  padding: 0 16px;
   background: transparent;
   color: var(--muted);
 }
@@ -102,8 +104,8 @@ input {
 .workspace {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 24px;
+  gap: 14px;
+  padding: 18px;
 }
 
 .side-panel {
@@ -140,8 +142,13 @@ p {
 }
 
 h1 {
-  font-size: 28px;
+  font-size: 24px;
   line-height: 1.2;
+}
+
+.app-header p {
+  margin-top: 2px;
+  font-size: 15px;
 }
 
 h2 {
@@ -173,11 +180,11 @@ h2 {
 
 .control-panel {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   align-items: end;
   justify-content: stretch;
-  gap: 18px;
-  padding: 14px;
+  gap: 14px;
+  padding: 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfd;
@@ -186,11 +193,11 @@ h2 {
 
 .recognition-panel {
   display: grid;
-  grid-template-columns: minmax(160px, 0.75fr) minmax(260px, 1.1fr) minmax(260px, 1fr);
+  grid-template-columns: minmax(160px, 0.7fr) minmax(260px, 1fr) minmax(280px, 1.2fr);
   align-items: center;
-  gap: 18px;
-  min-height: 96px;
-  padding: 16px;
+  gap: 16px;
+  min-height: 82px;
+  padding: 14px 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background:
@@ -250,8 +257,8 @@ h2 {
   align-items: center;
   gap: 5px;
   min-width: 0;
-  height: 58px;
-  padding: 10px 12px;
+  height: 50px;
+  padding: 8px 12px;
   border: 1px solid #cfd9e2;
   border-radius: 8px;
   background:
@@ -263,7 +270,7 @@ h2 {
 .waveform span {
   display: block;
   width: 100%;
-  height: 38px;
+  height: 32px;
   min-width: 3px;
   border-radius: 999px;
   background: linear-gradient(180deg, #2dd4bf, var(--accent-dark));
@@ -277,16 +284,16 @@ h2 {
 
 .recognition-copy {
   display: grid;
-  justify-items: end;
-  gap: 10px;
+  justify-items: start;
+  gap: 8px;
   min-width: 0;
 }
 
 .recognition-panel p {
   min-width: 0;
   color: var(--muted);
-  line-height: 1.6;
-  text-align: right;
+  line-height: 1.55;
+  text-align: left;
 }
 
 .recognition-panel[data-stream-state="connecting"] .stream-dot,
@@ -373,24 +380,22 @@ select:disabled,
   gap: 10px;
   flex-wrap: wrap;
   justify-content: flex-start;
-  padding-top: 2px;
+  padding-top: 0;
 }
 
 .archive-option {
   display: grid;
-  align-self: stretch;
-  gap: 6px;
-  min-height: 90px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fff;
+  align-self: end;
+  gap: 4px;
+  min-height: 40px;
+  padding: 0 2px 2px;
+  background: transparent;
 }
 
 .archive-option p {
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 button {
@@ -428,6 +433,15 @@ button:disabled {
   color: var(--accent-dark);
 }
 
+.actions button {
+  min-width: 104px;
+}
+
+#recordButton {
+  width: 136px;
+  padding: 0 10px;
+}
+
 .danger-text {
   color: var(--danger);
 }
@@ -435,8 +449,8 @@ button:disabled {
 .editor-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  min-height: 420px;
+  gap: 14px;
+  min-height: 340px;
 }
 
 .editor-pane {
@@ -459,7 +473,7 @@ button:disabled {
 
 textarea {
   width: 100%;
-  min-height: 360px;
+  min-height: 300px;
   flex: 1;
   resize: none;
   border: 0;
@@ -472,20 +486,20 @@ textarea {
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 
 .metrics-grid article {
   display: grid;
-  gap: 8px;
-  padding: 14px;
+  gap: 6px;
+  padding: 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfd;
 }
 
 .metrics-grid strong {
-  font-size: 24px;
+  font-size: 22px;
 }
 
 .history-list {
@@ -564,6 +578,11 @@ textarea {
   width: 16px;
   height: 16px;
   accent-color: var(--accent);
+}
+
+.archive-option .checkbox-field {
+  color: var(--text);
+  font-size: 13px;
 }
 
 .hotword-form {
@@ -827,6 +846,7 @@ textarea {
   .app-header {
     align-items: flex-start;
     flex-direction: column;
+    min-height: 0;
   }
 
   .library-layout,
@@ -907,5 +927,9 @@ textarea {
 
   .actions button {
     flex: 1 1 140px;
+  }
+
+  #recordButton {
+    width: auto;
   }
 }
