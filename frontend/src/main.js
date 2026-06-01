@@ -96,7 +96,7 @@ const elements = {
 };
 
 const sampleText =
-  "嗯我想用 SmartDictate 整理二叉树的遍历笔记，二叉树的遍历包括前序遍历、中序遍历、后序遍历以及层序遍历。";
+  "嗯我想用派森开发七牛语音输入法然后复制结果";
 
 const state = {
   startedAt: null,

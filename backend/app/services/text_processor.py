@@ -45,7 +45,15 @@ class TextProcessor:
         removed_count = 0
         cleaned = text
         for word in rules.filler_words:
-            cleaned, count = re.subn(rf"(?<!\w){re.escape(word)}(?!\w)", "", cleaned)
+            if len(word) == 1:
+                cleaned, count = re.subn(
+                    rf"(^|[\s，。！？；：,.!?;:]){re.escape(word)}"
+                    r"(?=$|[\s，。！？；：,.!?;:]|[\u4e00-\u9fff])",
+                    r"\1",
+                    cleaned,
+                )
+            else:
+                cleaned, count = re.subn(rf"(?<!\w){re.escape(word)}(?!\w)", "", cleaned)
             removed_count += count
         return self._normalize_space(cleaned), removed_count
 

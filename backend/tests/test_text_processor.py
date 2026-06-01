@@ -56,3 +56,12 @@ def test_process_adds_spacing_around_latin_hotwords() -> None:
     result = processor.process("我想用派森开发七牛语音输入法")
 
     assert result.text == "我想用 Python 开发七牛云语音输入法。"
+
+
+def test_process_cleans_compact_sample_text() -> None:
+    processor = TextProcessor()
+
+    result = processor.process("嗯我想用派森开发七牛语音输入法然后复制结果")
+
+    assert result.text == "我想用 Python 开发七牛云语音输入法，然后复制结果。"
+    assert result.metrics.removed_fillers == 1
